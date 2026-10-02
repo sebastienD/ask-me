@@ -60,6 +60,7 @@ Par défaut, chaque joueur répond à 3 questions. L'option `-n` change ce nombr
 - la première ligne non vide est l'en-tête (les noms des thèmes) ;
 - les lignes vides et celles commençant par `#` sont ignorées ;
 - une ligne ayant moins de colonnes que l'en-tête est ignorée (avec un message dans les logs) ;
+- il faut au moins 2 thèmes et 1 ligne valide ;
 - les espaces autour des valeurs sont supprimés.
 
 ```csv
@@ -70,16 +71,22 @@ abide;abode;abode;respecter/se conformer à
 arise;arose;arisen;survenir
 ```
 
-La comparaison des réponses est exacte : casse, accents et variantes (`respecter/se conformer à`) doivent correspondre au caractère près.
+La comparaison des réponses est exacte : casse, accents et variantes (`respecter/se conformer à`) doivent correspondre au caractère près. Seuls les espaces en début et fin de réponse sont ignorés.
 
 ## Développement
 
-```bash
-go build -v ./...
-```
+### Structure du code
+
+| Fichier | Rôle |
+|---|---|
+| [main.go](main.go) | lecture des options et des joueurs, lancement de la partie |
+| [deck.go](deck.go) | chargement et validation du fichier CSV (`LoadDeck`, `ParseDeck`) |
+| [game.go](game.go) | déroulement de la partie : questions, réponses, score, gagnant |
+
+### Compiler
 
 ```bash
-go test -v ./...
+go build -v ./...
 ```
 
 La CI GitHub Actions ([.github/workflows/go.yml](.github/workflows/go.yml)) compile et lance les tests à chaque push et pull request sur `main`.

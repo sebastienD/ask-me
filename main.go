@@ -44,12 +44,13 @@ func main() {
 		names = []string{"antoine"}
 	}
 
-	filepath := "anglais.csv"
-
-	game := NewGame(nbQuestions, names...)
-	if err := game.ApplyThemesAndSubjects(filepath); err != nil {
-		log.Fatalf("Can't parse file %s: %v", filepath, err)
+	const deckPath = "anglais.csv"
+	deck, err := LoadDeck(deckPath)
+	if err != nil {
+		log.Fatalf("Can't parse file %s: %v", deckPath, err)
 	}
+
+	game := NewGame(deck, nbQuestions, names)
 	game.Run()
 	game.ShowWinner()
 }
