@@ -75,7 +75,10 @@ func (g *Game) ApplyThemesAndSubjects(path string) error {
 	for scanner.Scan() {
 		numLine++
 		line := scanner.Text()
+		line = strings.Trim(line, " \t")
 		switch {
+		case len(line) == 0:
+			continue
 		case isComment(line):
 			continue
 		case head:
