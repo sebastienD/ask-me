@@ -89,6 +89,19 @@ La comparaison des réponses est exacte : casse, accents et variantes (`respecte
 go build -v ./...
 ```
 
+### Tests
+
+```bash
+go test -v ./...
+```
+
+Les tests unitaires couvrent :
+
+- [deck_test.go](deck_test.go) : lecture du CSV (en-tête, commentaires, lignes vides, espaces, lignes trop courtes), cas d'erreur, et cohérence du fichier `anglais.csv` livré (aucune case vide) ;
+- [game_test.go](game_test.go) : tirage des questions (deux thèmes toujours différents), vérification des réponses, enchaînement des tours entre joueurs et désignation du gagnant (égalité : le premier joueur l'emporte).
+
+Pour les tests, `Game` lit les réponses et écrit les questions via des champs remplaçables (`in`, `out`, `rng`) ; le générateur aléatoire est initialisé avec une graine fixe pour des tirages reproductibles.
+
 La CI GitHub Actions ([.github/workflows/go.yml](.github/workflows/go.yml)) compile et lance les tests à chaque push et pull request sur `main`.
 
 ## Idées / TODO
