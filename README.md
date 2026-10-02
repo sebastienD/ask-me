@@ -48,9 +48,11 @@ Partie à plusieurs, en local et au tour par tour — passer les prénoms en arg
 ./ask-me alice bob
 ```
 
-Chaque joueur répond à 3 questions.
+Par défaut, chaque joueur répond à 3 questions. L'option `-n` change ce nombre ; elle doit être placée avant les noms des joueurs :
 
-> ⚠️ Le flag `-n` (nombre de questions par joueur) est déclaré dans le code mais pas encore pris en compte : `flag.Parse()` n'est pas appelé et tous les arguments sont interprétés comme des noms de joueurs.
+```bash
+./ask-me -n 10 alice bob
+```
 
 ## Format du fichier CSV
 

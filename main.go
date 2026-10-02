@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
 )
 
 /*
@@ -36,16 +35,14 @@ import (
  - gérer le fait qu'un mot peut avoir plusieurs solution
 */
 func main() {
-	argsWithoutProg := os.Args[1:]
-	var names []string
-	if len(argsWithoutProg) == 0 {
-		names = append(names, "antoine")
-	} else {
-		names = argsWithoutProg
-	}
-
 	var nbQuestions int
 	flag.IntVar(&nbQuestions, "n", 3, "nombre de questions par joueur")
+	flag.Parse()
+
+	names := flag.Args()
+	if len(names) == 0 {
+		names = []string{"antoine"}
+	}
 
 	filepath := "anglais.csv"
 
