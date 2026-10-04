@@ -53,4 +53,5 @@ func main() {
 	game := NewGame(deck, nbQuestions, names)
 	game.Run()
 	game.ShowWinner()
+	game.ShowResults()
 }

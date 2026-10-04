@@ -18,7 +18,17 @@ antoine, si la base verbale vaut arise, alors que vaut le prétérit ?
 👍
 ```
 
-En cas d'erreur, la bonne réponse est affichée. À la fin de la partie, le joueur ayant le plus de bonnes réponses est désigné gagnant.
+En cas d'erreur, la bonne réponse est affichée. À la fin de la partie, le joueur ayant le plus de bonnes réponses est désigné gagnant (en cas d'égalité, le premier joueur l'emporte), puis les résultats de chaque joueur sont affichés :
+
+```
+Le gagnant est...   alice
+
+Résultats :
+  alice  score  67 %  ✅ 2 réussites  ❌ 1 échec
+  bob    score  33 %  ✅ 1 réussite  ❌ 2 échecs
+```
+
+Le score est le pourcentage de bonnes réponses, arrondi à l'entier le plus proche.
 
 ## Installation
 
@@ -81,7 +91,7 @@ La comparaison des réponses est exacte : casse, accents et variantes (`respecte
 |---|---|
 | [main.go](main.go) | lecture des options et des joueurs, lancement de la partie |
 | [deck.go](deck.go) | chargement et validation du fichier CSV (`LoadDeck`, `ParseDeck`) |
-| [game.go](game.go) | déroulement de la partie : questions, réponses, score, gagnant |
+| [game.go](game.go) | déroulement de la partie : questions, réponses, gagnant, score et résultats |
 
 ### Compiler
 
@@ -98,7 +108,7 @@ go test -v ./...
 Les tests unitaires couvrent :
 
 - [deck_test.go](deck_test.go) : lecture du CSV (en-tête, commentaires, lignes vides, espaces, lignes trop courtes), cas d'erreur, et cohérence du fichier `anglais.csv` livré (aucune case vide) ;
-- [game_test.go](game_test.go) : tirage des questions (deux thèmes toujours différents), vérification des réponses, enchaînement des tours entre joueurs et désignation du gagnant (égalité : le premier joueur l'emporte).
+- [game_test.go](game_test.go) : tirage des questions (deux thèmes toujours différents), vérification des réponses, enchaînement des tours entre joueurs et désignation du gagnant (égalité : le premier joueur l'emporte), calcul du score et affichage des résultats.
 
 Pour les tests, `Game` lit les réponses et écrit les questions via des champs remplaçables (`in`, `out`, `rng`) ; le générateur aléatoire est initialisé avec une graine fixe pour des tirages reproductibles.
 

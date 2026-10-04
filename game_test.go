@@ -68,7 +68,7 @@ func TestPlayTurn(t *testing.T) {
 
 			g.playTurn(player)
 
-			if got := player.Score() == 1; got != tt.wantGood {
+			if got := player.Successes() == 1; got != tt.wantGood {
 				t.Errorf("good answer = %v, want %v", got, tt.wantGood)
 			}
 			if len(player.GoodAnswered)+len(player.BadAnswered) != 1 {
@@ -89,11 +89,11 @@ func TestRun(t *testing.T) {
 	g.Run()
 
 	alice, bob := g.players[0], g.players[1]
-	if alice.Score() != 2 || len(alice.BadAnswered) != 0 {
-		t.Errorf("alice: %d good, %d bad; want 2 good, 0 bad", alice.Score(), len(alice.BadAnswered))
+	if alice.Successes() != 2 || alice.Failures() != 0 {
+		t.Errorf("alice: %d good, %d bad; want 2 good, 0 bad", alice.Successes(), alice.Failures())
 	}
-	if bob.Score() != 1 || len(bob.BadAnswered) != 1 {
-		t.Errorf("bob: %d good, %d bad; want 1 good, 1 bad", bob.Score(), len(bob.BadAnswered))
+	if bob.Successes() != 1 || bob.Failures() != 1 {
+		t.Errorf("bob: %d good, %d bad; want 1 good, 1 bad", bob.Successes(), bob.Failures())
 	}
 	if n := strings.Count(out.String(), "alors que vaut"); n != 4 {
 		t.Errorf("asked %d questions, want 4", n)
@@ -126,5 +126,48 @@ func TestWinner(t *testing.T) {
 				t.Errorf("winner = %s, want %s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestScore(t *testing.T) {
+	answers := func(n int) []Question { return make([]Question, n) }
+
+	tests := []struct {
+		name      string
+		good, bad int
+		want      int
+	}{
+		{"no answer", 0, 0, 0},
+		{"all good", 3, 0, 100},
+		{"all bad", 0, 3, 0},
+		{"rounded down", 1, 2, 33},
+		{"rounded up", 2, 1, 67},
+		{"half", 1, 1, 50},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Player{GoodAnswered: answers(tt.good), BadAnswered: answers(tt.bad)}
+			if got := p.Score(); got != tt.want {
+				t.Errorf("score = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestShowResults(t *testing.T) {
+	answers := func(n int) []Question { return make([]Question, n) }
+	out := &strings.Builder{}
+	g := &Game{out: out, players: []*Player{
+		{Name: "alice", GoodAnswered: answers(2), BadAnswered: answers(1)},
+		{Name: "bob", GoodAnswered: answers(1), BadAnswered: answers(0)},
+	}}
+
+	g.ShowResults()
+
+	want := "\nRésultats :\n" +
+		"  alice  score  67 %  ✅ 2 réussites  ❌ 1 échec\n" +
+		"  bob    score 100 %  ✅ 1 réussite  ❌ 0 échec\n"
+	if out.String() != want {
+		t.Errorf("got:\n%s\nwant:\n%s", out.String(), want)
 	}
 }

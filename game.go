@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/fatih/color"
 )
@@ -36,8 +37,21 @@ type Player struct {
 	BadAnswered  []Question
 }
 
-func (p *Player) Score() int {
+func (p *Player) Successes() int {
 	return len(p.GoodAnswered)
+}
+
+func (p *Player) Failures() int {
+	return len(p.BadAnswered)
+}
+
+// Score is the percentage of good answers, rounded to the nearest integer.
+func (p *Player) Score() int {
+	total := p.Successes() + p.Failures()
+	if total == 0 {
+		return 0
+	}
+	return (100*p.Successes() + total/2) / total
 }
 
 // Question asks for the Asked theme of a subject, knowing its Given theme.
@@ -115,7 +129,7 @@ func (g *Game) readAnswer() string {
 func (g *Game) Winner() *Player {
 	var winner *Player
 	for _, player := range g.players {
-		if winner == nil || player.Score() > winner.Score() {
+		if winner == nil || player.Successes() > winner.Successes() {
 			winner = player
 		}
 	}
@@ -130,4 +144,26 @@ func (g *Game) ShowWinner() {
 	}
 	time.Sleep(time.Second)
 	fmt.Fprintf(g.out, "   %s \n", g.Winner().Name)
+}
+
+func (g *Game) ShowResults() {
+	nameWidth := 0
+	for _, player := range g.players {
+		nameWidth = max(nameWidth, utf8.RuneCountInString(player.Name))
+	}
+
+	fmt.Fprintln(g.out, "\nRésultats :")
+	for _, player := range g.players {
+		fmt.Fprintf(g.out, "  %-*s  score %3d %%  ✅ %s  ❌ %s\n",
+			nameWidth, player.Name, player.Score(),
+			plural(player.Successes(), "réussite"), plural(player.Failures(), "échec"))
+	}
+}
+
+// plural formats n followed by word, with an "s" when n > 1.
+func plural(n int, word string) string {
+	if n > 1 {
+		word += "s"
+	}
+	return fmt.Sprintf("%d %s", n, word)
 }
