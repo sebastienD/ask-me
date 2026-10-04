@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/fatih/color"
 )
@@ -28,37 +27,6 @@ type Game struct {
 	in  *bufio.Scanner
 	out io.Writer
 	rng *rand.Rand
-}
-
-// Player keeps track of the questions a player answered right and wrong.
-type Player struct {
-	Name         string
-	GoodAnswered []Question
-	BadAnswered  []Question
-}
-
-func (p *Player) Successes() int {
-	return len(p.GoodAnswered)
-}
-
-func (p *Player) Failures() int {
-	return len(p.BadAnswered)
-}
-
-// Score is the percentage of good answers, rounded to the nearest integer.
-func (p *Player) Score() int {
-	total := p.Successes() + p.Failures()
-	if total == 0 {
-		return 0
-	}
-	return (100*p.Successes() + total/2) / total
-}
-
-// Question asks for the Asked theme of a subject, knowing its Given theme.
-type Question struct {
-	Subject int
-	Given   int
-	Asked   int
 }
 
 func NewGame(deck *Deck, nbTurns int, names []string) *Game {
@@ -86,12 +54,11 @@ func (g *Game) Run() {
 }
 
 func (g *Game) playTurn(player *Player) {
-	q := g.newQuestion()
-	subject := g.deck.Subjects[q.Subject]
-	expected := subject[q.Asked]
+	q := g.deck.RandomQuestion(g.rng)
+	expected := g.deck.Answer(q)
 
 	fmt.Fprintf(g.out, "%s, si %s vaut %s, alors que vaut %s ?\n 👉 ",
-		player.Name, g.deck.Themes[q.Given], blue(subject[q.Given]), g.deck.Themes[q.Asked])
+		player.Name, g.deck.Themes[q.Given], blue(g.deck.Clue(q)), g.deck.Themes[q.Asked])
 
 	if g.readAnswer() == expected {
 		fmt.Fprint(g.out, "👍  \n\n")
@@ -99,21 +66,6 @@ func (g *Game) playTurn(player *Player) {
 	} else {
 		fmt.Fprintf(g.out, "🥲 la bonne réponse était %s\n\n", green(expected))
 		player.BadAnswered = append(player.BadAnswered, q)
-	}
-}
-
-// newQuestion picks a random subject and two distinct random themes.
-func (g *Game) newQuestion() Question {
-	nbThemes := len(g.deck.Themes)
-	given := g.rng.Intn(nbThemes)
-	asked := g.rng.Intn(nbThemes - 1)
-	if asked >= given {
-		asked++
-	}
-	return Question{
-		Subject: g.rng.Intn(len(g.deck.Subjects)),
-		Given:   given,
-		Asked:   asked,
 	}
 }
 
@@ -125,15 +77,8 @@ func (g *Game) readAnswer() string {
 	return strings.TrimSpace(g.in.Text())
 }
 
-// Winner returns the player with the most good answers; the first one wins ties.
 func (g *Game) Winner() *Player {
-	var winner *Player
-	for _, player := range g.players {
-		if winner == nil || player.Successes() > winner.Successes() {
-			winner = player
-		}
-	}
-	return winner
+	return winner(g.players)
 }
 
 func (g *Game) ShowWinner() {
@@ -147,23 +92,5 @@ func (g *Game) ShowWinner() {
 }
 
 func (g *Game) ShowResults() {
-	nameWidth := 0
-	for _, player := range g.players {
-		nameWidth = max(nameWidth, utf8.RuneCountInString(player.Name))
-	}
-
-	fmt.Fprintln(g.out, "\nRésultats :")
-	for _, player := range g.players {
-		fmt.Fprintf(g.out, "  %-*s  score %3d %%  ✅ %s  ❌ %s\n",
-			nameWidth, player.Name, player.Score(),
-			plural(player.Successes(), "réussite"), plural(player.Failures(), "échec"))
-	}
-}
-
-// plural formats n followed by word, with an "s" when n > 1.
-func plural(n int, word string) string {
-	if n > 1 {
-		word += "s"
-	}
-	return fmt.Sprintf("%d %s", n, word)
+	writeResults(g.out, g.players)
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"reflect"
 	"strings"
 	"testing"
@@ -69,5 +70,45 @@ func TestLoadDeckAnglais(t *testing.T) {
 				t.Errorf("subject %d (%s) has no %s", i, subject[0], deck.Themes[j])
 			}
 		}
+	}
+}
+
+func TestRandomQuestion(t *testing.T) {
+	deck := &Deck{
+		Themes:   []string{"a", "b", "c", "d"},
+		Subjects: [][]string{{"1", "2", "3", "4"}, {"5", "6", "7", "8"}},
+	}
+	rng := rand.New(rand.NewSource(1))
+
+	askedSeen := map[int]bool{}
+	for i := 0; i < 1000; i++ {
+		q := deck.RandomQuestion(rng)
+		if q.Given == q.Asked {
+			t.Fatalf("given and asked themes are the same: %+v", q)
+		}
+		if q.Given < 0 || q.Given >= 4 || q.Asked < 0 || q.Asked >= 4 {
+			t.Fatalf("theme out of range: %+v", q)
+		}
+		if q.Subject < 0 || q.Subject >= 2 {
+			t.Fatalf("subject out of range: %+v", q)
+		}
+		askedSeen[q.Asked] = true
+	}
+	if len(askedSeen) != 4 {
+		t.Errorf("every theme should be asked at some point, got %v", askedSeen)
+	}
+}
+
+func TestClueAndAnswer(t *testing.T) {
+	deck := &Deck{
+		Themes:   []string{"base", "prétérit", "traduction"},
+		Subjects: [][]string{{"arise", "arose", "survenir"}, {"be", "was/were", "être"}},
+	}
+	q := Question{Subject: 1, Given: 2, Asked: 0}
+	if got := deck.Clue(q); got != "être" {
+		t.Errorf("clue = %q, want %q", got, "être")
+	}
+	if got := deck.Answer(q); got != "be" {
+		t.Errorf("answer = %q, want %q", got, "be")
 	}
 }

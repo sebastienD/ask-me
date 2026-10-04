@@ -90,8 +90,9 @@ La comparaison des réponses est exacte : casse, accents et variantes (`respecte
 | Fichier | Rôle |
 |---|---|
 | [main.go](main.go) | lecture des options et des joueurs, lancement de la partie |
-| [deck.go](deck.go) | chargement et validation du fichier CSV (`LoadDeck`, `ParseDeck`) |
-| [game.go](game.go) | déroulement de la partie : questions, réponses, gagnant, score et résultats |
+| [deck.go](deck.go) | chargement et validation du fichier CSV (`LoadDeck`, `ParseDeck`), tirage des questions |
+| [results.go](results.go) | joueurs, score, gagnant et affichage des résultats (communs à tous les modes) |
+| [game.go](game.go) | partie dans le terminal : questions, réponses, enchaînement des tours |
 
 ### Compiler
 
@@ -107,8 +108,9 @@ go test -v ./...
 
 Les tests unitaires couvrent :
 
-- [deck_test.go](deck_test.go) : lecture du CSV (en-tête, commentaires, lignes vides, espaces, lignes trop courtes), cas d'erreur, et cohérence du fichier `anglais.csv` livré (aucune case vide) ;
-- [game_test.go](game_test.go) : tirage des questions (deux thèmes toujours différents), vérification des réponses, enchaînement des tours entre joueurs et désignation du gagnant (égalité : le premier joueur l'emporte), calcul du score et affichage des résultats.
+- [deck_test.go](deck_test.go) : lecture du CSV (en-tête, commentaires, lignes vides, espaces, lignes trop courtes), cas d'erreur, et cohérence du fichier `anglais.csv` livré (aucune case vide), tirage des questions (deux thèmes toujours différents) ;
+- [game_test.go](game_test.go) : vérification des réponses et enchaînement des tours entre joueurs ;
+- [results_test.go](results_test.go) : désignation du gagnant (égalité : le premier joueur l'emporte), calcul du score et affichage des résultats.
 
 Pour les tests, `Game` lit les réponses et écrit les questions via des champs remplaçables (`in`, `out`, `rng`) ; le générateur aléatoire est initialisé avec une graine fixe pour des tirages reproductibles.
 

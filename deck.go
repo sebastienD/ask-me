@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -17,6 +18,38 @@ const separator = ";"
 type Deck struct {
 	Themes   []string
 	Subjects [][]string
+}
+
+// Question asks for the Asked theme of a subject, knowing its Given theme.
+type Question struct {
+	Subject int
+	Given   int
+	Asked   int
+}
+
+// RandomQuestion picks a random subject and two distinct random themes.
+func (d *Deck) RandomQuestion(rng *rand.Rand) Question {
+	nbThemes := len(d.Themes)
+	given := rng.Intn(nbThemes)
+	asked := rng.Intn(nbThemes - 1)
+	if asked >= given {
+		asked++
+	}
+	return Question{
+		Subject: rng.Intn(len(d.Subjects)),
+		Given:   given,
+		Asked:   asked,
+	}
+}
+
+// Clue is the value shown to the player.
+func (d *Deck) Clue(q Question) string {
+	return d.Subjects[q.Subject][q.Given]
+}
+
+// Answer is the value the player must find.
+func (d *Deck) Answer(q Question) string {
+	return d.Subjects[q.Subject][q.Asked]
 }
 
 // LoadDeck reads and validates the deck stored in the CSV file at path.
