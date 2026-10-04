@@ -1,38 +1,31 @@
 # ask-me
 
-Petit jeu de questions/réponses écrit en Go pour réviser du vocabulaire, dans le terminal ou à plusieurs sur téléphone en réseau local. Il est livré avec une liste de verbes irréguliers anglais ([anglais.csv](anglais.csv)).
+Petit jeu de questions/réponses pour réviser du vocabulaire, seul ou entre amis. Il est livré avec la liste des verbes irréguliers anglais ([anglais.csv](anglais.csv)), mais fonctionne avec n'importe quelle liste.
 
-## Principe
+Deux façons de jouer :
 
-Le jeu lit un fichier CSV où chaque colonne est un « thème » (par exemple : base verbale, prétérit, participe passé, traduction) et chaque ligne un « sujet » (un verbe).
+| | Dans le terminal | Sur téléphone, en réseau local |
+|---|---|---|
+| Pour qui | seul, ou à plusieurs sur le même ordinateur | à plusieurs, chacun sur son téléphone |
+| Comment | on se passe le clavier | une personne crée la partie, les autres rejoignent avec un lien |
+| À installer | le jeu sur l'ordinateur | le jeu sur un seul ordinateur, **rien sur les téléphones** |
+| Commande | `./ask-me` | `./ask-me -reseau` |
 
-À chaque tour, pour chaque joueur :
+## Le principe
 
-1. une ligne est tirée au hasard ;
-2. une colonne est donnée, une autre (différente) est demandée ;
-3. le joueur tape sa réponse.
+Chaque ligne de la liste est un verbe, chaque colonne une de ses formes (base verbale, prétérit, participe passé, traduction). Pour chaque question, le jeu tire un verbe au hasard, donne une de ses formes et en demande une autre :
 
 ```
-antoine, si la base verbale vaut arise, alors que vaut le prétérit ?
+alice, si la base verbale vaut arise, alors que vaut le prétérit ?
  👉 arose
 👍
 ```
 
-En cas d'erreur, la bonne réponse est affichée. À la fin de la partie, le joueur ayant le plus de bonnes réponses est désigné gagnant (en cas d'égalité, le premier joueur l'emporte), puis les résultats de chaque joueur sont affichés :
-
-```
-Le gagnant est...   alice
-
-Résultats :
-  alice  score  67 %  ✅ 2 réussites  ❌ 1 échec
-  bob    score  33 %  ✅ 1 réussite  ❌ 2 échecs
-```
-
-Le score est le pourcentage de bonnes réponses, arrondi à l'entier le plus proche.
+En cas d'erreur, la bonne réponse est affichée.
 
 ## Installation
 
-Prérequis : Go 1.21 ou plus récent.
+Il faut [Go](https://go.dev/dl/) 1.21 ou plus récent :
 
 ```bash
 git clone https://github.com/sebastienD/ask-me.git
@@ -40,44 +33,48 @@ cd ask-me
 go build
 ```
 
-Des binaires sont aussi publiés dans les releases GitHub (avec le fichier `anglais.csv`).
+Le fichier `anglais.csv` doit se trouver dans le dossier depuis lequel on lance le jeu.
 
-## Utilisation
+Des binaires pour Linux, Windows et macOS sont générés à chaque release GitHub. Ils ne contiennent pas `anglais.csv`, qu'il faut télécharger à part. La seule release publiée (v0.0.1, 2023) date d'avant le mode réseau et le score.
 
-Le fichier `anglais.csv` doit se trouver dans le répertoire courant.
+## Jouer dans le terminal
 
-Partie solo (joueur par défaut : `antoine`) :
+Seul (le joueur s'appelle alors `antoine`) :
 
 ```bash
 ./ask-me
 ```
 
-Partie à plusieurs, en local et au tour par tour — passer les prénoms en arguments :
+À plusieurs : passer les prénoms. Les joueurs répondent chacun leur tour.
 
 ```bash
 ./ask-me alice bob
 ```
 
-Par défaut, chaque joueur répond à 3 questions. L'option `-n` change ce nombre ; elle doit être placée avant les noms des joueurs :
+Chaque joueur répond à 3 questions par défaut. L'option `-n` change ce nombre ; elle doit être placée **avant** les prénoms :
 
 ```bash
 ./ask-me -n 10 alice bob
 ```
 
-## Partie en réseau local (sur téléphone)
-
-Une personne crée la partie sur son ordinateur, les autres (et elle aussi) jouent depuis le navigateur de leur téléphone. **Rien à installer sur les téléphones.**
+## Jouer sur téléphone, en réseau local
 
 ### 1. Créer la partie
+
+Sur un ordinateur connecté au Wi-Fi :
 
 ```bash
 ./ask-me -reseau
 ```
 
-Le jeu demande le mode :
+Le jeu demande d'abord le mode de jeu (voir [Les modes de jeu](#les-modes-de-jeu)) :
 
-- **Chacun son tour** : chaque joueur reçoit sa propre question, à tour de rôle ;
-- **Le plus rapide** : tout le monde reçoit la même question, le premier qui trouve marque le point. Une mauvaise réponse compte comme un échec et empêche de retenter cette question.
+```
+Mode de jeu :
+  1) Chacun son tour
+  2) Le plus rapide
+Ton choix [1] :
+```
 
 Il affiche ensuite le lien de la partie, un message prêt à copier dans WhatsApp et un QR code :
 
@@ -95,7 +92,7 @@ Il affiche ensuite le lien de la partie, un message prêt à copier dans WhatsAp
 
 ### 2. Rejoindre
 
-Chacun touche le lien reçu sur WhatsApp (ou scanne le QR code), tape son prénom et attend. Celui qui a créé la partie ouvre le même lien pour jouer aussi. Le terminal affiche les arrivées :
+Chacun touche le lien reçu sur WhatsApp, ou scanne le QR code, puis tape son prénom. **Celui qui a créé la partie ouvre le même lien pour jouer aussi.** Le terminal affiche les arrivées :
 
 ```
 ✅ Léa a rejoint la partie (1 joueur)
@@ -104,32 +101,63 @@ Chacun touche le lien reçu sur WhatsApp (ou scanne le QR code), tape son préno
 
 ### 3. Jouer
 
-Quand tout le monde est là, appuyer sur **Entrée** dans le terminal. Les questions s'affichent sur les téléphones avec un compte à rebours de 30 secondes, puis la réponse pendant 3 secondes. À la fin, le gagnant et les résultats s'affichent sur les téléphones et dans le terminal.
+Quand tout le monde est là, appuyer sur **Entrée** dans le terminal. Sur les téléphones :
 
-- `-n` : nombre de questions par joueur (en mode « le plus rapide », c'est le nombre total de questions) ;
-- `-port` : port utilisé (4242 par défaut).
+- la question s'affiche avec un compte à rebours de **30 secondes** ;
+- puis la bonne réponse et le nom de celui qui l'a trouvée, pendant 3 secondes ;
+- le tableau des scores est mis à jour en direct ;
+- à la fin, le gagnant et les résultats s'affichent (aussi dans le terminal).
+
+Pour rejouer, appuyer sur Entrée dans le terminal pour quitter, puis relancer `./ask-me -reseau` et renvoyer le nouveau lien.
+
+### Options
+
+| Option | Rôle | Défaut |
+|---|---|---|
+| `-n` | nombre de questions par joueur (en mode « le plus rapide » : nombre total de questions) | 3 |
+| `-port` | port utilisé par la partie (à changer si 4242 est déjà pris) | 4242 |
 
 ```bash
-./ask-me -reseau -n 10 -port 8080
+./ask-me -reseau -n 10
 ```
 
-En mode « chacun son tour », ne pas répondre à temps compte comme un échec. En mode « le plus rapide », personne n'est pénalisé si le temps s'écoule.
+## Les modes de jeu
 
-### En cas de problème
+Ces modes concernent la partie sur téléphone. Dans le terminal, on joue toujours chacun son tour.
 
-- **Le lien ne s'ouvre pas** : tous les téléphones doivent être sur **le même Wi-Fi** que l'ordinateur, pas en 4G/5G.
-- **Ça ne marche toujours pas** : certains Wi-Fi « invités » ou d'établissements scolaires empêchent les appareils de communiquer entre eux. Utiliser le Wi-Fi de la maison, ou un partage de connexion depuis un téléphone.
-- **macOS demande d'autoriser les connexions entrantes** au premier lancement : cliquer sur « Autoriser ».
-- **Un joueur a fermé la page** : il suffit de rouvrir le lien, il retrouve sa place.
+| | Chacun son tour | Le plus rapide |
+|---|---|---|
+| Questions | chaque joueur a sa propre question, à tour de rôle | tout le monde a la même question en même temps |
+| Qui marque | le joueur s'il trouve | le **premier** qui trouve |
+| Mauvaise réponse | compte comme un échec | compte comme un échec, et on ne peut plus retenter cette question |
+| Temps écoulé (30 s) | compte comme un échec | personne n'est pénalisé |
+| Nombre de questions | `-n` par joueur | `-n` au total |
 
-## Format du fichier CSV
+## Score et gagnant
 
-- séparateur : `;`
-- la première ligne non vide est l'en-tête (les noms des thèmes) ;
-- les lignes vides et celles commençant par `#` sont ignorées ;
-- une ligne ayant moins de colonnes que l'en-tête est ignorée (avec un message dans les logs) ;
-- il faut au moins 2 thèmes et 1 ligne valide ;
-- les espaces autour des valeurs sont supprimés.
+À la fin de la partie, chaque joueur voit son score, ses réussites et ses échecs :
+
+```
+Résultats :
+  Léa  score  67 %  ✅ 2 réussites  ❌ 1 échec
+  Tom  score  33 %  ✅ 1 réussite  ❌ 2 échecs
+```
+
+- le **score** est le pourcentage de réussites parmi les réussites et les échecs du joueur, arrondi à l'entier (en mode « le plus rapide », une question à laquelle on n'a pas répondu ne compte pas) ;
+- le **gagnant** est celui qui a le plus de réussites ; en cas d'égalité, c'est le premier inscrit.
+
+## Comment les réponses sont vérifiées
+
+La réponse doit être **exactement** celle de la liste : majuscules, accents et barres obliques comptent. Seuls les espaces au début et à la fin sont ignorés.
+
+- `held` est juste pour le prétérit de `hold`, `Held` est faux ;
+- quand la liste propose plusieurs formes, comme `burnt/burned` ou `respecter/se conformer à`, il faut taper la ligne entière.
+
+Sur téléphone, la majuscule automatique et le correcteur sont désactivés dans le champ de réponse.
+
+## Utiliser sa propre liste
+
+Pour réviser autre chose, remplacer le contenu de `anglais.csv` (le nom du fichier est fixe pour l'instant). Le format :
 
 ```csv
 la base verbale;le prétérit;le participe passé;la traduction
@@ -139,7 +167,37 @@ abide;abode;abode;respecter/se conformer à
 arise;arose;arisen;survenir
 ```
 
-La comparaison des réponses est exacte : casse, accents et variantes (`respecter/se conformer à`) doivent correspondre au caractère près. Seuls les espaces en début et fin de réponse sont ignorés.
+- le séparateur est `;` ;
+- la première ligne donne le nom des colonnes ; il en faut au moins 2 ;
+- les lignes vides et celles qui commencent par `#` sont ignorées ;
+- une ligne avec moins de colonnes que la première est ignorée (un message l'indique) ;
+- les espaces autour des valeurs sont supprimés.
+
+## Questions fréquentes
+
+**Le lien ne s'ouvre pas sur le téléphone.**
+Le téléphone doit être sur **le même Wi-Fi** que l'ordinateur, pas en 4G/5G.
+
+**Tout le monde est sur le même Wi-Fi, mais ça ne marche toujours pas.**
+Certains Wi-Fi « invités » ou d'établissements scolaires empêchent les appareils de se parler entre eux. Utiliser le Wi-Fi de la maison, ou un partage de connexion depuis un téléphone (l'ordinateur et les autres téléphones s'y connectent).
+
+**macOS demande s'il faut autoriser les connexions entrantes.**
+Cliquer sur « Autoriser », sinon les téléphones ne peuvent pas rejoindre la partie.
+
+**Le terminal affiche « Impossible de trouver l'adresse de cet ordinateur sur le réseau local ».**
+L'ordinateur n'est connecté à aucun réseau : le connecter au Wi-Fi puis relancer la partie.
+
+**Un joueur a fermé la page ou son téléphone s'est mis en veille.**
+Il rouvre le lien sur le même téléphone et retrouve sa place. Pendant ce temps, en mode « chacun son tour », ses questions sans réponse comptent comme des échecs.
+
+**Quelqu'un arrive après le lancement.**
+Il ne peut plus s'inscrire, mais il voit la partie en spectateur. Il pourra jouer à la suivante.
+
+**« Ce prénom est déjà pris ».**
+Deux joueurs ne peuvent pas avoir le même prénom (les majuscules ne comptent pas) : ajouter une initiale, par exemple « Léa B. ».
+
+**Ma réponse était bonne mais elle est comptée fausse.**
+Voir [Comment les réponses sont vérifiées](#comment-les-réponses-sont-vérifiées) : il faut la forme exacte de la liste, avec toutes ses variantes.
 
 ## Développement
 
@@ -153,13 +211,14 @@ go test -race ./...
 
 L'architecture, le moteur de la partie en réseau, l'API HTTP et la stratégie de tests sont décrits dans la [documentation technique](docs/ARCHITECTURE.md). La CI GitHub Actions compile et lance les tests à chaque push et pull request sur `main`.
 
-## Idées / TODO
+## Idées
 
 - mode chrono (un maximum de bonnes réponses en un temps donné) ;
 - mode « première lettre » ;
 - statistiques de fin de partie (le plus rapide, rejouer les erreurs…) ;
-- accepter plusieurs traductions possibles ;
+- accepter une seule des variantes (`burnt` ou `burned`) ;
 - tolérance sur les accents (paramétrable) ;
+- choisir le fichier de vocabulaire ;
 - prononciation des mots.
 
 ## Licence
