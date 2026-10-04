@@ -93,6 +93,8 @@ La comparaison des réponses est exacte : casse, accents et variantes (`respecte
 | [deck.go](deck.go) | chargement et validation du fichier CSV (`LoadDeck`, `ParseDeck`), tirage des questions |
 | [results.go](results.go) | joueurs, score, gagnant et affichage des résultats (communs à tous les modes) |
 | [game.go](game.go) | partie dans le terminal : questions, réponses, enchaînement des tours |
+| [room.go](room.go) | moteur de la partie en réseau : salon, modes de jeu, délais, diffusion de l'état aux joueurs |
+| [snapshot.go](snapshot.go) | état de la partie envoyé aux joueurs (sans jamais révéler la réponse en cours) |
 
 ### Compiler
 
@@ -110,9 +112,10 @@ Les tests unitaires couvrent :
 
 - [deck_test.go](deck_test.go) : lecture du CSV (en-tête, commentaires, lignes vides, espaces, lignes trop courtes), cas d'erreur, et cohérence du fichier `anglais.csv` livré (aucune case vide), tirage des questions (deux thèmes toujours différents) ;
 - [game_test.go](game_test.go) : vérification des réponses et enchaînement des tours entre joueurs ;
-- [results_test.go](results_test.go) : désignation du gagnant (égalité : le premier joueur l'emporte), calcul du score et affichage des résultats.
+- [results_test.go](results_test.go) : désignation du gagnant (égalité : le premier joueur l'emporte), calcul du score et affichage des résultats ;
+- [room_test.go](room_test.go) : partie en réseau — inscription (prénom vide, trop long ou déjà pris), déroulement des modes « chacun son tour » et « le plus rapide », temps écoulé, état envoyé aux joueurs.
 
-Pour les tests, `Game` lit les réponses et écrit les questions via des champs remplaçables (`in`, `out`, `rng`) ; le générateur aléatoire est initialisé avec une graine fixe pour des tirages reproductibles.
+Pour les tests, `Game` lit les réponses et écrit les questions via des champs remplaçables (`in`, `out`, `rng`) ; le générateur aléatoire est initialisé avec une graine fixe pour des tirages reproductibles. De la même façon, `Room` reçoit une fonction `schedule` : les tests la remplacent par une fausse horloge pour faire avancer le temps sans attendre.
 
 La CI GitHub Actions ([.github/workflows/go.yml](.github/workflows/go.yml)) compile et lance les tests à chaque push et pull request sur `main`.
 
