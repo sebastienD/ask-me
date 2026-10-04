@@ -35,19 +35,29 @@ import (
  - gérer le fait qu'un mot peut avoir plusieurs solution
 */
 func main() {
-	var nbQuestions int
+	var nbQuestions, port int
+	var network bool
 	flag.IntVar(&nbQuestions, "n", 3, "nombre de questions par joueur")
+	flag.BoolVar(&network, "reseau", false, "créer une partie en réseau local, jouée depuis les téléphones")
+	flag.IntVar(&port, "port", 4242, "port de la partie en réseau")
 	flag.Parse()
-
-	names := flag.Args()
-	if len(names) == 0 {
-		names = []string{"antoine"}
-	}
 
 	const deckPath = "anglais.csv"
 	deck, err := LoadDeck(deckPath)
 	if err != nil {
 		log.Fatalf("Can't parse file %s: %v", deckPath, err)
+	}
+
+	if network {
+		if err := runNetworkGame(deck, nbQuestions, port); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	names := flag.Args()
+	if len(names) == 0 {
+		names = []string{"antoine"}
 	}
 
 	game := NewGame(deck, nbQuestions, names)

@@ -1,6 +1,6 @@
 # ask-me
 
-Petit jeu de questions/réponses en ligne de commande, écrit en Go, pour réviser du vocabulaire. Il est livré avec une liste de verbes irréguliers anglais ([anglais.csv](anglais.csv)).
+Petit jeu de questions/réponses écrit en Go pour réviser du vocabulaire, dans le terminal ou à plusieurs sur téléphone en réseau local. Il est livré avec une liste de verbes irréguliers anglais ([anglais.csv](anglais.csv)).
 
 ## Principe
 
@@ -64,6 +64,64 @@ Par défaut, chaque joueur répond à 3 questions. L'option `-n` change ce nombr
 ./ask-me -n 10 alice bob
 ```
 
+## Partie en réseau local (sur téléphone)
+
+Une personne crée la partie sur son ordinateur, les autres (et elle aussi) jouent depuis le navigateur de leur téléphone. **Rien à installer sur les téléphones.**
+
+### 1. Créer la partie
+
+```bash
+./ask-me -reseau
+```
+
+Le jeu demande le mode :
+
+- **Chacun son tour** : chaque joueur reçoit sa propre question, à tour de rôle ;
+- **Le plus rapide** : tout le monde reçoit la même question, le premier qui trouve marque le point. Une mauvaise réponse compte comme un échec et empêche de retenter cette question.
+
+Il affiche ensuite le lien de la partie, un message prêt à copier dans WhatsApp et un QR code :
+
+```
+🎮 Partie créée (mode : Le plus rapide) !
+
+📱 Pour jouer, ouvrez ce lien sur votre téléphone (toi aussi !) :
+
+   http://192.168.1.23:4242
+
+💬 Message à copier dans WhatsApp :
+
+   Viens jouer à ask-me avec moi 🎮 👉 http://192.168.1.23:4242
+```
+
+### 2. Rejoindre
+
+Chacun touche le lien reçu sur WhatsApp (ou scanne le QR code), tape son prénom et attend. Celui qui a créé la partie ouvre le même lien pour jouer aussi. Le terminal affiche les arrivées :
+
+```
+✅ Léa a rejoint la partie (1 joueur)
+✅ Tom a rejoint la partie (2 joueurs)
+```
+
+### 3. Jouer
+
+Quand tout le monde est là, appuyer sur **Entrée** dans le terminal. Les questions s'affichent sur les téléphones avec un compte à rebours de 30 secondes, puis la réponse pendant 3 secondes. À la fin, le gagnant et les résultats s'affichent sur les téléphones et dans le terminal.
+
+- `-n` : nombre de questions par joueur (en mode « le plus rapide », c'est le nombre total de questions) ;
+- `-port` : port utilisé (4242 par défaut).
+
+```bash
+./ask-me -reseau -n 10 -port 8080
+```
+
+En mode « chacun son tour », ne pas répondre à temps compte comme un échec. En mode « le plus rapide », personne n'est pénalisé si le temps s'écoule.
+
+### En cas de problème
+
+- **Le lien ne s'ouvre pas** : tous les téléphones doivent être sur **le même Wi-Fi** que l'ordinateur, pas en 4G/5G.
+- **Ça ne marche toujours pas** : certains Wi-Fi « invités » ou d'établissements scolaires empêchent les appareils de communiquer entre eux. Utiliser le Wi-Fi de la maison, ou un partage de connexion depuis un téléphone.
+- **macOS demande d'autoriser les connexions entrantes** au premier lancement : cliquer sur « Autoriser ».
+- **Un joueur a fermé la page** : il suffit de rouvrir le lien, il retrouve sa place.
+
 ## Format du fichier CSV
 
 - séparateur : `;`
@@ -95,6 +153,9 @@ La comparaison des réponses est exacte : casse, accents et variantes (`respecte
 | [game.go](game.go) | partie dans le terminal : questions, réponses, enchaînement des tours |
 | [room.go](room.go) | moteur de la partie en réseau : salon, modes de jeu, délais, diffusion de l'état aux joueurs |
 | [snapshot.go](snapshot.go) | état de la partie envoyé aux joueurs (sans jamais révéler la réponse en cours) |
+| [server.go](server.go) | serveur HTTP : page du jeu et API (`/api/join`, `/api/answer`, `/api/events` en Server-Sent Events) |
+| [network.go](network.go) | partie en réseau côté terminal : choix du mode, adresse sur le réseau local, invitation, QR code |
+| [web/index.html](web/index.html) | page jouée sur les téléphones, intégrée au binaire (`embed`) |
 
 ### Compiler
 
@@ -113,7 +174,9 @@ Les tests unitaires couvrent :
 - [deck_test.go](deck_test.go) : lecture du CSV (en-tête, commentaires, lignes vides, espaces, lignes trop courtes), cas d'erreur, et cohérence du fichier `anglais.csv` livré (aucune case vide), tirage des questions (deux thèmes toujours différents) ;
 - [game_test.go](game_test.go) : vérification des réponses et enchaînement des tours entre joueurs ;
 - [results_test.go](results_test.go) : désignation du gagnant (égalité : le premier joueur l'emporte), calcul du score et affichage des résultats ;
-- [room_test.go](room_test.go) : partie en réseau — inscription (prénom vide, trop long ou déjà pris), déroulement des modes « chacun son tour » et « le plus rapide », temps écoulé, état envoyé aux joueurs.
+- [room_test.go](room_test.go) : partie en réseau — inscription (prénom vide, trop long ou déjà pris), déroulement des modes « chacun son tour » et « le plus rapide », temps écoulé, état envoyé aux joueurs ;
+- [server_test.go](server_test.go) : page du jeu, API d'inscription et de réponse (erreurs comprises), flux d'événements ;
+- [network_test.go](network_test.go) : choix du mode, choix de l'adresse sur le réseau local, invitation, suivi des arrivées.
 
 Pour les tests, `Game` lit les réponses et écrit les questions via des champs remplaçables (`in`, `out`, `rng`) ; le générateur aléatoire est initialisé avec une graine fixe pour des tirages reproductibles. De la même façon, `Room` reçoit une fonction `schedule` : les tests la remplacent par une fausse horloge pour faire avancer le temps sans attendre.
 
@@ -123,7 +186,7 @@ La CI GitHub Actions ([.github/workflows/go.yml](.github/workflows/go.yml)) comp
 
 - mode chrono (un maximum de bonnes réponses en un temps donné) ;
 - mode « première lettre » ;
-- multijoueur à distance (création de partie, statistiques, rejouer les erreurs…) ;
+- statistiques de fin de partie (le plus rapide, rejouer les erreurs…) ;
 - accepter plusieurs traductions possibles ;
 - tolérance sur les accents (paramétrable) ;
 - prononciation des mots.

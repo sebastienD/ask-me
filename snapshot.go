@@ -1,14 +1,18 @@
 package main
 
+import "time"
+
 // Snapshot is the state of a room as seen by the players. It never contains
 // the answer of the current question before the reveal.
 type Snapshot struct {
+	Game     string        `json:"game"`
 	Phase    Phase         `json:"phase"`
 	Mode     string        `json:"mode"`
 	Players  []PlayerView  `json:"players"`
 	Question *QuestionView `json:"question,omitempty"`
 	Reveal   *Reveal       `json:"reveal,omitempty"`
 	Winner   string        `json:"winner,omitempty"`
+	Now      int64         `json:"now"` // server time, so that phones can fix their clock
 }
 
 type PlayerView struct {
@@ -27,6 +31,7 @@ type QuestionView struct {
 	Turn       string   `json:"turn,omitempty"` // ModeTurns: who must answer
 	Answered   []string `json:"answered"`
 	Deadline   int64    `json:"deadline"` // Unix time in milliseconds
+	Duration   int64    `json:"duration"` // time to answer, in milliseconds
 }
 
 // Reveal is the answer of the question that just ended.
@@ -38,10 +43,12 @@ type Reveal struct {
 // snapshot builds the current state. The caller must hold the lock.
 func (r *Room) snapshot() Snapshot {
 	s := Snapshot{
+		Game:    r.id,
 		Phase:   r.phase,
 		Mode:    r.mode.String(),
 		Players: make([]PlayerView, len(r.players)),
 		Reveal:  r.reveal,
+		Now:     time.Now().UnixMilli(),
 	}
 	for i, player := range r.players {
 		s.Players[i] = PlayerView{
@@ -61,6 +68,7 @@ func (r *Room) snapshot() Snapshot {
 			AskedTheme: r.deck.Themes[r.question.Asked],
 			Answered:   []string{},
 			Deadline:   r.deadline.UnixMilli(),
+			Duration:   r.questionTime.Milliseconds(),
 		}
 		if r.turn != nil && r.mode == ModeTurns {
 			q.Turn = r.turn.Name

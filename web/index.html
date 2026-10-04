@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ask-me</title>
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --card: #ffffff;
+    --text: #1d1b16;
+    --muted: #6b665c;
+    --accent: #3b5bdb;
+    --accent-text: #ffffff;
+    --good: #2b8a3e;
+    --bad: #c92a2a;
+    --border: #e3dfd5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171b;
+      --card: #202228;
+      --text: #ecebe7;
+      --muted: #9a978f;
+      --accent: #748ffc;
+      --accent-text: #10121a;
+      --good: #69db7c;
+      --bad: #ff8787;
+      --border: #33363f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { font-size: 20px; margin: 0 0 12px; }
+  .subtitle { color: var(--muted); margin: 0 0 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  [hidden] { display: none !important; }
+  form { display: flex; gap: 8px; }
+  input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 20px;
+    padding: 12px 14px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    font: inherit;
+    font-weight: 600;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+  button:disabled { opacity: .5; }
+  .error { color: var(--bad); margin: 10px 0 0; min-height: 1.4em; }
+  .players { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .players li {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 12px;
+  }
+  .players li.me { border-color: var(--accent); font-weight: 600; }
+  .progress { display: flex; justify-content: space-between; color: var(--muted); font-size: 15px; }
+  .timer { height: 6px; background: var(--border); border-radius: 3px; margin: 8px 0 18px; overflow: hidden; }
+  .timer div { height: 100%; background: var(--accent); width: 100%; }
+  .prompt { font-size: 19px; margin: 0 0 18px; }
+  .clue { font-size: 30px; font-weight: 700; color: var(--accent); display: block; margin: 6px 0; overflow-wrap: anywhere; }
+  .status { color: var(--muted); margin: 14px 0 0; }
+  .reveal { font-size: 19px; }
+  .reveal .answer { font-size: 26px; font-weight: 700; color: var(--good); overflow-wrap: anywhere; }
+  .good { color: var(--good); }
+  .bad { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 14px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.me td { font-weight: 700; }
+  .winner { font-size: 26px; text-align: center; margin: 4px 0 0; }
+  .banner {
+    position: sticky; top: 0;
+    background: var(--bad); color: #fff;
+    text-align: center; padding: 8px 16px; font-size: 15px;
+  }
+</style>
+</head>
+<body>
+<div class="banner" id="offline" hidden>Connexion perdue… Vérifie que tu es sur le même Wi-Fi que l'ordinateur de la partie.</div>
+<main>
+  <h1>ask-me 🎮</h1>
+  <p class="subtitle" id="mode">Connexion à la partie…</p>
+
+  <section class="card" id="join" hidden>
+    <h2>Quel est ton prénom ?</h2>
+    <form id="join-form">
+      <input id="name" maxlength="20" autocomplete="given-name" enterkeyhint="go" required>
+      <button>Rejoindre</button>
+    </form>
+    <p class="error" id="join-error"></p>
+  </section>
+
+  <section class="card" id="lobby" hidden>
+    <h2>Tu es dans la partie 🎉</h2>
+    <ul class="players" id="lobby-players"></ul>
+    <p class="status">En attente du lancement de la partie…</p>
+  </section>
+
+  <section class="card" id="question" hidden>
+    <div class="progress"><span id="number"></span><span id="countdown"></span></div>
+    <div class="timer"><div id="timer-bar"></div></div>
+    <p class="prompt">Si <span id="given-theme"></span> vaut
+      <span class="clue" id="clue"></span>
+      alors que vaut <strong id="asked-theme"></strong> ?</p>
+    <form id="answer-form" hidden>
+      <input id="answer" autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" enterkeyhint="send">
+      <button>OK</button>
+    </form>
+    <p class="error" id="answer-error"></p>
+    <div class="reveal" id="reveal" hidden>
+      <p id="reveal-title"></p>
+      <p>La réponse était : <span class="answer" id="reveal-answer"></span></p>
+    </div>
+    <p class="status" id="status"></p>
+  </section>
+
+  <section class="card" id="finished" hidden>
+    <p class="winner" id="winner"></p>
+  </section>
+
+  <section class="card" id="scores" hidden>
+    <h2 id="scores-title">Scores</h2>
+    <table>
+      <thead><tr><th>Joueur</th><th class="num">Score</th><th class="num">✅</th><th class="num">❌</th></tr></thead>
+      <tbody id="scores-body"></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const STORAGE_KEY = "ask-me";
+
+let snapshot = null;
+let clockOffset = 0;         // server time - phone time
+let me = loadMe();           // {game, id, name} once joined
+let shownQuestion = 0;       // question number currently displayed
+let myResult = null;         // {number, correct} of my last answer
+
+function loadMe() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; }
+}
+function saveMe(value) {
+  me = value;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); } catch {}
+}
+
+// I am a player of this game if I joined it and my name is in the list.
+function isPlayer() {
+  return me && snapshot && me.game === snapshot.game &&
+    snapshot.players.some((p) => p.name === me.name);
+}
+
+async function post(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "erreur inconnue");
+  return data;
+}
+
+$("join-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const name = $("name").value.trim();
+  const button = event.target.querySelector("button");
+  button.disabled = true;
+  $("join-error").textContent = "";
+  try {
+    const { id } = await post("/api/join", { name });
+    saveMe({ game: snapshot.game, id, name });
+    render();
+  } catch (error) {
+    $("join-error").textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$("answer-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const answer = $("answer").value;
+  const number = snapshot.question.number;
+  const button = event.target.querySelector("button");
+  button.disabled = true;
+  $("answer-error").textContent = "";
+  try {
+    const { correct } = await post("/api/answer", { id: me.id, answer });
+    myResult = { number, correct };
+    render();
+  } catch (error) {
+    $("answer-error").textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+function show(id, visible) { $(id).hidden = !visible; }
+
+function render() {
+  const s = snapshot;
+  const player = isPlayer();
+  $("mode").textContent = "Mode : " + s.mode;
+
+  show("join", s.phase === "lobby" && !player);
+  show("lobby", s.phase === "lobby" && player);
+  show("question", s.phase === "question" || s.phase === "reveal");
+  show("finished", s.phase === "finished");
+  show("scores", s.phase !== "lobby");
+
+  if (s.phase === "lobby") {
+    renderPlayers();
+    if (!player && document.activeElement !== $("name")) $("name").focus();
+  } else if (s.phase === "finished") {
+    $("winner").textContent = s.winner ? "🏆 " + s.winner + " a gagné !" : "Partie terminée";
+  } else {
+    renderQuestion(player);
+  }
+  if (s.phase !== "lobby") renderScores();
+}
+
+function renderPlayers() {
+  const list = $("lobby-players");
+  list.replaceChildren(...snapshot.players.map((p) => {
+    const li = document.createElement("li");
+    li.textContent = p.name;
+    if (me && p.name === me.name) li.className = "me";
+    return li;
+  }));
+}
+
+function renderQuestion(player) {
+  const q = snapshot.question;
+  const reveal = snapshot.phase === "reveal";
+
+  if (q.number !== shownQuestion) {
+    shownQuestion = q.number;
+    $("answer").value = "";
+    $("answer-error").textContent = "";
+  }
+  $("number").textContent = "Question " + q.number + "/" + q.total;
+  $("given-theme").textContent = q.givenTheme;
+  $("clue").textContent = q.clue;
+  $("asked-theme").textContent = q.askedTheme;
+
+  const myTurn = !q.turn || (me && q.turn === me.name);
+  const answered = me && q.answered.includes(me.name);
+  const canAnswer = player && !reveal && myTurn && !answered;
+  const wasHidden = $("answer-form").hidden;
+  show("answer-form", canAnswer);
+  if (canAnswer && wasHidden) $("answer").focus();
+
+  show("reveal", reveal);
+  if (reveal) {
+    const finder = snapshot.reveal.finder;
+    $("reveal-title").textContent = finder
+      ? (me && finder === me.name ? "👍 Bravo, tu as trouvé !" : "✅ " + finder + " a trouvé !")
+      : "😶 Personne n'a trouvé.";
+    $("reveal-answer").textContent = snapshot.reveal.answer;
+  }
+
+  $("status").textContent = questionStatus(player, reveal, myTurn, answered);
+}
+
+function questionStatus(player, reveal, myTurn, answered) {
+  const q = snapshot.question;
+  if (reveal) return q.number < q.total ? "Question suivante dans un instant…" : "Résultats dans un instant…";
+  if (!player) return "La partie a déjà commencé : tu peux regarder.";
+  if (!myTurn) return "C'est au tour de " + q.turn + ".";
+  if (answered) {
+    const missed = myResult && myResult.number === q.number && !myResult.correct;
+    return (missed ? "🥲 Raté ! " : "") + "On attend les autres…";
+  }
+  if (q.answered.length > 0) return "Déjà répondu : " + q.answered.join(", ");
+  return "";
+}
+
+function renderScores() {
+  const finished = snapshot.phase === "finished";
+  $("scores-title").textContent = finished ? "Résultats" : "Scores";
+  const players = [...snapshot.players].sort((a, b) => b.successes - a.successes);
+  $("scores-body").replaceChildren(...players.map((p) => {
+    const tr = document.createElement("tr");
+    if (me && p.name === me.name && isPlayer()) tr.className = "me";
+    for (const [value, cls] of [[p.name, ""], [p.score + " %", "num"], [p.successes, "num good"], [p.failures, "num bad"]]) {
+      const td = document.createElement("td");
+      td.textContent = value;
+      td.className = cls;
+      tr.append(td);
+    }
+    return tr;
+  }));
+}
+
+// The countdown is computed locally from the question deadline.
+setInterval(() => {
+  if (!snapshot || snapshot.phase !== "question") {
+    $("countdown").textContent = "";
+    $("timer-bar").style.width = "0";
+    return;
+  }
+  const q = snapshot.question;
+  const remaining = Math.max(0, q.deadline - (Date.now() + clockOffset));
+  $("countdown").textContent = "⏱ " + Math.ceil(remaining / 1000) + " s";
+  $("timer-bar").style.width = Math.min(100, remaining / q.duration * 100) + "%";
+}, 200);
+
+function connect() {
+  const events = new EventSource("/api/events");
+  events.onopen = () => show("offline", false);
+  events.onerror = () => show("offline", true);
+  events.onmessage = (event) => {
+    snapshot = JSON.parse(event.data);
+    clockOffset = snapshot.now - Date.now();
+    render();
+  };
+}
+connect();
+</script>
+</body>
+</html>

@@ -62,6 +62,7 @@ var (
 type Room struct {
 	mu sync.Mutex
 
+	id           string // identifies this game, so that phones forget older ones
 	deck         *Deck
 	mode         Mode
 	nbQuestions  int // per player
@@ -87,6 +88,7 @@ type Room struct {
 
 func NewRoom(deck *Deck, mode Mode, nbQuestions int) *Room {
 	return &Room{
+		id:           newID(),
 		deck:         deck,
 		mode:         mode,
 		nbQuestions:  nbQuestions,
