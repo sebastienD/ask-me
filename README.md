@@ -35,7 +35,7 @@ Le score est le pourcentage de bonnes réponses, arrondi à l'entier le plus pro
 Prérequis : Go 1.21 ou plus récent.
 
 ```bash
-git clone <url-du-depot> ask-me
+git clone https://github.com/sebastienD/ask-me.git
 cd ask-me
 go build
 ```
