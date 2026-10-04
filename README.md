@@ -35,7 +35,7 @@ go build
 
 Le fichier `anglais.csv` doit se trouver dans le dossier depuis lequel on lance le jeu.
 
-Des binaires pour Linux, Windows et macOS sont générés à chaque release GitHub. Ils ne contiennent pas `anglais.csv`, qu'il faut télécharger à part. La seule release publiée (v0.0.1, 2023) date d'avant le mode réseau et le score.
+Sans installer Go, on peut aussi télécharger le jeu dans les [releases GitHub](https://github.com/sebastienD/ask-me/releases) : une archive par système (Linux, Windows, macOS) contient le jeu, `anglais.csv`, ce README et la licence. Décompresser l'archive et lancer `./ask-me` depuis ce dossier. Attention : la seule release publiée pour l'instant (v0.0.1, 2023) date d'avant le mode réseau et le score, et ne contient pas `anglais.csv`.
 
 ## Jouer dans le terminal
 
