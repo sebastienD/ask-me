@@ -231,7 +231,7 @@ Pour des tests rapides et déterministes :
 
 La CI GitHub Actions ([.github/workflows/go.yml](../.github/workflows/go.yml)) compile et lance les tests avec Go 1.21 à chaque push et pull request sur `main`.
 
-À la création d'une release GitHub, [.github/workflows/release.yaml](../.github/workflows/release.yaml) compile le binaire pour Linux, Windows et macOS (386, amd64, arm64) et publie une archive par cible avec `LICENSE`, `README.md` et `anglais.csv`, nécessaire au lancement du jeu.
+À la création d'une release GitHub, [.github/workflows/release.yaml](../.github/workflows/release.yaml) compile le binaire pour Linux, Windows et macOS (386, amd64, arm64) et publie une archive par cible avec `LICENSE`, `README.md` et `anglais.csv`, nécessaire au lancement du jeu. Le workflow déclare `permissions: contents: write` : sans cela, le jeton fourni par GitHub est en lecture seule et l'envoi des archives échoue (`403 Resource not accessible by integration`).
 
 ## Dépendances
 
