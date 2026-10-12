@@ -9,7 +9,7 @@ Trois façons de jouer :
 | Pour qui | seul, ou à plusieurs sur le même ordinateur | à plusieurs, réunis au même endroit | à plusieurs, chacun chez soi |
 | Comment | on se passe le clavier | une personne crée la partie, les autres rejoignent avec un lien | pareil, le lien marche aussi en 4G/5G |
 | À installer | le jeu sur l'ordinateur | le jeu sur un seul ordinateur, **rien sur les téléphones** | le jeu et [cloudflared](#jouer-à-distance) sur un seul ordinateur |
-| Commande | `./ask-me` | `./ask-me -reseau` | `./ask-me -remote` |
+| Commande | `./ask-me` | `./ask-me -local` | `./ask-me -remote` |
 
 ## Le principe
 
@@ -64,7 +64,7 @@ Chaque joueur répond à 3 questions par défaut. L'option `-n` change ce nombre
 Sur un ordinateur connecté au Wi-Fi :
 
 ```bash
-./ask-me -reseau
+./ask-me -local
 ```
 
 Le jeu demande d'abord le mode de jeu (voir [Les modes de jeu](#les-modes-de-jeu)) :
@@ -108,7 +108,7 @@ Quand tout le monde est là, appuyer sur **Entrée** dans le terminal. Sur les t
 - le tableau des scores est mis à jour en direct ;
 - à la fin, le gagnant et les résultats s'affichent (aussi dans le terminal).
 
-Pour rejouer, appuyer sur Entrée dans le terminal pour quitter, puis relancer `./ask-me -reseau` et renvoyer le nouveau lien.
+Pour rejouer, appuyer sur Entrée dans le terminal pour quitter, puis relancer `./ask-me -local` et renvoyer le nouveau lien.
 
 ### Options
 
@@ -119,7 +119,7 @@ Pour rejouer, appuyer sur Entrée dans le terminal pour quitter, puis relancer `
 | `-remote` | jouer à distance, par Internet, au lieu du même Wi-Fi (voir [Jouer à distance](#jouer-à-distance)) | désactivé |
 
 ```bash
-./ask-me -reseau -n 10
+./ask-me -local -n 10
 ```
 
 ## Jouer à distance
@@ -208,7 +208,7 @@ arise;arose;arisen;survenir
 ## Questions fréquentes
 
 **Le lien ne s'ouvre pas sur le téléphone.**
-Avec `-reseau`, le téléphone doit être sur **le même Wi-Fi** que l'ordinateur, pas en 4G/5G. Pour jouer sans être sur le même Wi-Fi, lancer la partie avec [`-remote`](#jouer-à-distance).
+Avec `-local`, le téléphone doit être sur **le même Wi-Fi** que l'ordinateur, pas en 4G/5G. Pour jouer sans être sur le même Wi-Fi, lancer la partie avec [`-remote`](#jouer-à-distance).
 
 **Tout le monde est sur le même Wi-Fi, mais ça ne marche toujours pas.**
 Certains Wi-Fi « invités » ou d'établissements scolaires empêchent les appareils de se parler entre eux. Utiliser le Wi-Fi de la maison, ou un partage de connexion depuis un téléphone (l'ordinateur et les autres téléphones s'y connectent).

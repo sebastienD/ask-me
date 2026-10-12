@@ -7,7 +7,7 @@ Ce document décrit le fonctionnement interne d'ask-me. Pour l'utilisation, voir
 ask-me est un unique binaire Go, sans base de données ni fichier de configuration. Il a trois modes d'exécution, choisis dans [main.go](../main.go) :
 
 - **terminal** (par défaut) : les joueurs se passent le clavier, à tour de rôle ;
-- **réseau local** (`-reseau`) : le binaire devient un serveur HTTP sur le réseau local, et les joueurs jouent depuis le navigateur de leur téléphone ;
+- **réseau local** (`-local`) : le binaire devient un serveur HTTP sur le réseau local, et les joueurs jouent depuis le navigateur de leur téléphone ;
 - **à distance** (`-remote`) : le même serveur, rendu accessible depuis Internet par un tunnel Cloudflare lancé par le jeu.
 
 ```mermaid
@@ -166,9 +166,9 @@ L'identifiant renvoyé par `/api/join` est un secret aléatoire de 128 bits : se
 `runNetworkGame` ([network.go](../network.go)) :
 
 1. demande le mode (`chooseMode`) ;
-2. écoute sur `-port` (4242 par défaut) : sur toutes les interfaces avec `-reseau`, seulement sur `127.0.0.1` avec `-remote` (seul `cloudflared` a besoin d'y accéder, et macOS ne demande pas d'autoriser les connexions entrantes) ;
+2. écoute sur `-port` (4242 par défaut) : sur toutes les interfaces avec `-local`, seulement sur `127.0.0.1` avec `-remote` (seul `cloudflared` a besoin d'y accéder, et macOS ne demande pas d'autoriser les connexions entrantes) ;
 3. construit le lien :
-   - avec `-reseau`, à partir de l'adresse locale (`lanIP`) : d'abord l'interface utilisée pour sortir vers Internet (une « connexion » UDP n'envoie aucun paquet), sinon la première adresse IPv4 privée en préférant `192.168.x.x` (les `10.x.x.x` sont souvent des VPN) ;
+   - avec `-local`, à partir de l'adresse locale (`lanIP`) : d'abord l'interface utilisée pour sortir vers Internet (une « connexion » UDP n'envoie aucun paquet), sinon la première adresse IPv4 privée en préférant `192.168.x.x` (les `10.x.x.x` sont souvent des VPN) ;
    - avec `-remote`, à partir du tunnel (voir ci-dessous) ;
 4. affiche le lien, le message WhatsApp et le QR code ([mdp/qrterminal](https://github.com/mdp/qrterminal)) ;
 5. affiche les arrivées (`watchRoom`), lance la partie sur **Entrée**, puis affiche le gagnant et les résultats.
@@ -249,9 +249,9 @@ Le serveur HTTP, le JSON, le long polling et l'intégration de la page utilisent
 
 - **Navigateur plutôt qu'application** : rien à installer pour les joueurs, un lien suffit.
 - **Long polling plutôt que SSE ou WebSocket** : la communication serveur → téléphones suffit (les réponses passent par un simple `POST`), c'est disponible dans la bibliothèque standard, et ce sont des requêtes HTTP ordinaires qui passent partout, y compris par les quick tunnels Cloudflare qui bloquent les SSE. Le coût, une requête par changement, est négligeable pour quelques joueurs.
-- **Une partie par lancement** : pas de code de partie à saisir ; pour rejouer, relancer `./ask-me -reseau`.
+- **Une partie par lancement** : pas de code de partie à saisir ; pour rejouer, relancer `./ask-me -local`.
 - **Pas de persistance** : tout est en mémoire et disparaît à l'arrêt du programme.
-- **Réseau local par défaut**, sans HTTPS ni authentification : avec `-reseau`, tous les appareils doivent être sur le même Wi-Fi, et certains réseaux (invités, établissements) isolent les appareils entre eux.
+- **Réseau local par défaut**, sans HTTPS ni authentification : avec `-local`, tous les appareils doivent être sur le même Wi-Fi, et certains réseaux (invités, établissements) isolent les appareils entre eux.
 - **À distance par un tunnel plutôt qu'un hébergement** : `-remote` ne demande ni compte ni serveur, mais l'ordinateur de l'hôte doit rester allumé et le lien change à chaque partie. N'importe qui ayant le lien peut rejoindre le salon : l'adresse est aléatoire et n'existe que le temps de la partie. Les quick tunnels de Cloudflare sont prévus pour des tests et n'ont pas de garantie de disponibilité.
 - **Latence** : en mode « le plus rapide », c'est la première réponse reçue par le serveur qui gagne ; à distance, une connexion lente désavantage légèrement.
 - On ne peut pas quitter le salon une fois inscrit ; un joueur absent est pénalisé par le temps écoulé en mode « chacun son tour ».
