@@ -15,14 +15,27 @@ import (
 )
 
 // runNetworkGame lets the host choose the mode, serves the game on the local
-// network, and shows the results once the game is over.
-func runNetworkGame(deck *Deck, nbQuestions, port int) error {
+// network (or on the Internet through a tunnel when remote is set), and shows
+// the results once the game is over.
+func runNetworkGame(deck *Deck, nbQuestions, port int, remote bool) error {
+	if remote {
+		// Fail before asking anything if the tunnel can't be opened.
+		if _, err := checkCloudflared(); err != nil {
+			return err
+		}
+	}
+
 	in := bufio.NewScanner(os.Stdin)
 	out := os.Stdout
 
 	mode := chooseMode(in, out)
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	// Through a tunnel, only cloudflared needs to reach the server.
+	address := fmt.Sprintf(":%d", port)
+	if remote {
+		address = fmt.Sprintf("127.0.0.1:%d", port)
+	}
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return errors.Wrapf(err, "listen on port %d", port)
 	}
@@ -33,11 +46,22 @@ func runNetworkGame(deck *Deck, nbQuestions, port int) error {
 		}
 	}()
 
-	ip, found := lanIP()
-	if !found {
-		fmt.Fprintln(out, "⚠️  Impossible de trouver l'adresse de cet ordinateur sur le réseau local.")
+	var url string
+	if remote {
+		tunnel, err := openTunnel(port, out)
+		if err != nil {
+			return err
+		}
+		defer tunnel.Stop()
+		url = tunnel.URL
+	} else {
+		ip, found := lanIP()
+		if !found {
+			fmt.Fprintln(out, "⚠️  Impossible de trouver l'adresse de cet ordinateur sur le réseau local.")
+		}
+		url = fmt.Sprintf("http://%s:%d", ip, port)
 	}
-	printInvitation(out, mode, fmt.Sprintf("http://%s:%d", ip, port))
+	printInvitation(out, mode, url, remote)
 
 	finished := watchRoom(room, out)
 
@@ -87,13 +111,30 @@ func chooseMode(in *bufio.Scanner, out io.Writer) Mode {
 	}
 }
 
-func printInvitation(out io.Writer, mode Mode, url string) {
+// openTunnel gives the game a public address and waits until it answers.
+func openTunnel(port int, out io.Writer) (*Tunnel, error) {
+	fmt.Fprintln(out, "\n🌍 Ouverture de l'accès à distance…")
+	tunnel, err := startTunnel(port)
+	if err != nil {
+		return nil, err
+	}
+	if !tunnel.WaitReady(tunnelReadyTimeout) {
+		fmt.Fprintln(out, "⚠️  Le lien ne répond pas encore : s'il ne s'ouvre pas, réessayez dans quelques secondes.")
+	}
+	return tunnel, nil
+}
+
+func printInvitation(out io.Writer, mode Mode, url string, remote bool) {
 	fmt.Fprintf(out, "\n🎮 Partie créée (mode : %s) !\n\n", mode)
 	fmt.Fprintf(out, "📱 Pour jouer, ouvrez ce lien sur votre téléphone (toi aussi !) :\n\n   %s\n\n", url)
 	fmt.Fprintf(out, "💬 Message à copier dans WhatsApp :\n\n   Viens jouer à ask-me avec moi 🎮 👉 %s\n\n", url)
 	fmt.Fprintln(out, "📷 Ou scannez ce QR code :")
 	qrterminal.GenerateHalfBlock(url, qrterminal.L, out)
-	fmt.Fprintln(out, "⚠️  Tout le monde doit être connecté au même Wi-Fi (pas en 4G/5G).")
+	if remote {
+		fmt.Fprintln(out, "⚠️  Le lien marche de partout (Wi-Fi ou 4G/5G) tant que cet ordinateur reste allumé et connecté.")
+	} else {
+		fmt.Fprintln(out, "⚠️  Tout le monde doit être connecté au même Wi-Fi (pas en 4G/5G).")
+	}
 }
 
 // watchRoom prints players joining the lobby, and closes the returned channel

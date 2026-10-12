@@ -59,18 +59,31 @@ func TestPickLANIP(t *testing.T) {
 }
 
 func TestPrintInvitation(t *testing.T) {
-	out := &strings.Builder{}
-	printInvitation(out, ModeRace, "http://192.168.1.23:4242")
+	tests := []struct {
+		name   string
+		url    string
+		remote bool
+		want   string
+	}{
+		{"local network", "http://192.168.1.23:4242", false, "même Wi-Fi"},
+		{"remote", "https://vert-lapin-42.trycloudflare.com", true, "Wi-Fi ou 4G/5G"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := &strings.Builder{}
+			printInvitation(out, ModeRace, tt.url, tt.remote)
 
-	for _, want := range []string{
-		"Le plus rapide",
-		"WhatsApp",
-		"Viens jouer à ask-me avec moi 🎮 👉 http://192.168.1.23:4242",
-		"même Wi-Fi",
-	} {
-		if !strings.Contains(out.String(), want) {
-			t.Errorf("invitation does not contain %q:\n%s", want, out.String())
-		}
+			for _, want := range []string{
+				"Le plus rapide",
+				"WhatsApp",
+				"Viens jouer à ask-me avec moi 🎮 👉 " + tt.url,
+				tt.want,
+			} {
+				if !strings.Contains(out.String(), want) {
+					t.Errorf("invitation does not contain %q:\n%s", want, out.String())
+				}
+			}
+		})
 	}
 }
 

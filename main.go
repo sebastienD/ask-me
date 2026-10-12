@@ -36,10 +36,11 @@ import (
 */
 func main() {
 	var nbQuestions, port int
-	var network bool
+	var network, remote bool
 	flag.IntVar(&nbQuestions, "n", 3, "nombre de questions par joueur")
 	flag.BoolVar(&network, "reseau", false, "créer une partie en réseau local, jouée depuis les téléphones")
 	flag.IntVar(&port, "port", 4242, "port de la partie en réseau")
+	flag.BoolVar(&remote, "remote", false, "créer une partie jouable à distance, par Internet (nécessite cloudflared)")
 	flag.Parse()
 
 	const deckPath = "anglais.csv"
@@ -48,8 +49,8 @@ func main() {
 		log.Fatalf("Can't parse file %s: %v", deckPath, err)
 	}
 
-	if network {
-		if err := runNetworkGame(deck, nbQuestions, port); err != nil {
+	if network || remote {
+		if err := runNetworkGame(deck, nbQuestions, port, remote); err != nil {
 			log.Fatal(err)
 		}
 		return

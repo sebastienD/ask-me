@@ -4,10 +4,11 @@ Ce document décrit le fonctionnement interne d'ask-me. Pour l'utilisation, voir
 
 ## Vue d'ensemble
 
-ask-me est un unique binaire Go, sans base de données ni fichier de configuration. Il a deux modes d'exécution, choisis dans [main.go](../main.go) :
+ask-me est un unique binaire Go, sans base de données ni fichier de configuration. Il a trois modes d'exécution, choisis dans [main.go](../main.go) :
 
 - **terminal** (par défaut) : les joueurs se passent le clavier, à tour de rôle ;
-- **réseau** (`-reseau`) : le binaire devient un serveur HTTP sur le réseau local, et les joueurs jouent depuis le navigateur de leur téléphone.
+- **réseau local** (`-reseau`) : le binaire devient un serveur HTTP sur le réseau local, et les joueurs jouent depuis le navigateur de leur téléphone ;
+- **à distance** (`-remote`) : le même serveur, rendu accessible depuis Internet par un tunnel Cloudflare lancé par le jeu.
 
 ```mermaid
 flowchart LR
@@ -20,6 +21,8 @@ flowchart LR
     Server <--> Phones[web/index.html<br/>téléphones]
     Network[network.go<br/>terminal de l'hôte] --> Room
     Network --> Server
+    Network -. option remote .-> Tunnel[tunnel.go<br/>cloudflared]
+    Tunnel -. https .-> Phones
 ```
 
 ## Fichiers
@@ -34,6 +37,7 @@ flowchart LR
 | [snapshot.go](../snapshot.go) | `Snapshot` : état de la partie envoyé aux téléphones |
 | [server.go](../server.go) | serveur HTTP : page du jeu et API JSON / SSE |
 | [network.go](../network.go) | côté terminal de l'hôte : choix du mode, adresse IP, invitation, QR code, résultats |
+| [tunnel.go](../tunnel.go) | `-remote` : lancement de `cloudflared`, lecture de l'adresse publique, attente qu'elle réponde |
 | [web/index.html](../web/index.html) | page jouée sur les téléphones (HTML, CSS et JS sans dépendance), intégrée au binaire par `embed` |
 
 ## Données : le deck
@@ -157,10 +161,41 @@ L'identifiant renvoyé par `/api/join` est un secret aléatoire de 128 bits : se
 `runNetworkGame` ([network.go](../network.go)) :
 
 1. demande le mode (`chooseMode`) ;
-2. écoute sur `-port` (4242 par défaut) ;
-3. trouve l'adresse locale (`lanIP`) : d'abord l'interface utilisée pour sortir vers Internet (une « connexion » UDP n'envoie aucun paquet), sinon la première adresse IPv4 privée en préférant `192.168.x.x` (les `10.x.x.x` sont souvent des VPN) ;
+2. écoute sur `-port` (4242 par défaut) : sur toutes les interfaces avec `-reseau`, seulement sur `127.0.0.1` avec `-remote` (seul `cloudflared` a besoin d'y accéder, et macOS ne demande pas d'autoriser les connexions entrantes) ;
+3. construit le lien :
+   - avec `-reseau`, à partir de l'adresse locale (`lanIP`) : d'abord l'interface utilisée pour sortir vers Internet (une « connexion » UDP n'envoie aucun paquet), sinon la première adresse IPv4 privée en préférant `192.168.x.x` (les `10.x.x.x` sont souvent des VPN) ;
+   - avec `-remote`, à partir du tunnel (voir ci-dessous) ;
 4. affiche le lien, le message WhatsApp et le QR code ([mdp/qrterminal](https://github.com/mdp/qrterminal)) ;
 5. affiche les arrivées (`watchRoom`), lance la partie sur **Entrée**, puis affiche le gagnant et les résultats.
+
+## Jeu à distance : le tunnel
+
+Avec `-remote`, [tunnel.go](../tunnel.go) lance un [quick tunnel Cloudflare](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/) : une adresse publique en `https://…trycloudflare.com` qui renvoie vers le jeu, sans compte ni redirection de port sur la box.
+
+```mermaid
+sequenceDiagram
+    participant Hôte as ask-me (hôte)
+    participant CF as cloudflared
+    participant Edge as Cloudflare
+    participant Tel as Téléphones
+    Hôte->>CF: cloudflared tunnel --no-autoupdate --url http://localhost:PORT
+    CF->>Edge: ouvre le tunnel (connexion sortante)
+    CF-->>Hôte: logs : https://xxx.trycloudflare.com
+    loop jusqu'à 20 s
+        Hôte->>Edge: GET https://xxx.trycloudflare.com
+    end
+    Hôte->>Hôte: affiche le lien, le message WhatsApp et le QR code
+    Tel->>Edge: page, API et flux SSE en https
+    Edge->>CF: requêtes
+    CF->>Hôte: http://localhost:PORT
+```
+
+1. `startTunnel` cherche `cloudflared` dans le `PATH` ; s'il manque, `ErrCloudflaredMissing` donne les commandes d'installation ;
+2. `findTunnelURL` lit les logs de `cloudflared` (sur sa sortie d'erreur) jusqu'à trouver l'adresse publique, avec un délai maximum de 30 s ; ensuite les logs continuent d'être lus et jetés, pour que `cloudflared` ne bloque jamais en écrivant ;
+3. `WaitReady` interroge l'adresse publique toutes les secondes, jusqu'à 20 s, car un nouveau tunnel met quelques secondes à répondre ; si ce n'est pas le cas, le lien est quand même affiché avec un avertissement ;
+4. `Stop` arrête `cloudflared` à la fin de la partie.
+
+Rien ne change dans le moteur, l'API ni la page : le flux SSE traverse le tunnel, et le commentaire `: keep-alive` envoyé toutes les 15 s évite que Cloudflare coupe une connexion inactive.
 
 ## Tests
 
@@ -175,7 +210,8 @@ go test -race ./...
 | [results_test.go](../results_test.go) | score, gagnant, affichage des résultats |
 | [room_test.go](../room_test.go) | inscription, deux modes de jeu, temps écoulé, minuteur périmé, réponse jamais divulguée, abonnements |
 | [server_test.go](../server_test.go) | page, API (succès et erreurs), flux SSE de bout en bout avec `httptest` |
-| [network_test.go](../network_test.go) | choix du mode, choix de l'adresse IP, invitation, suivi des arrivées |
+| [network_test.go](../network_test.go) | choix du mode, choix de l'adresse IP, invitation (réseau local et à distance), suivi des arrivées |
+| [tunnel_test.go](../tunnel_test.go) | lecture de l'adresse dans les logs, `cloudflared` absent, faux `cloudflared` (script shell qui imite ses logs et enregistre ses arguments), attente que le lien réponde |
 
 Pour des tests rapides et déterministes :
 
@@ -197,11 +233,15 @@ La CI GitHub Actions ([.github/workflows/go.yml](../.github/workflows/go.yml)) c
 
 Le serveur HTTP, le JSON, les SSE et l'intégration de la page utilisent uniquement la bibliothèque standard.
 
+`-remote` utilise aussi le programme [cloudflared](https://github.com/cloudflare/cloudflared), à installer sur l'ordinateur de l'hôte. Ce n'est pas une dépendance Go : le jeu le lance comme une commande externe.
+
 ## Choix et limites
 
 - **Navigateur plutôt qu'application** : rien à installer pour les joueurs, un lien suffit.
 - **SSE plutôt que WebSocket** : la communication serveur → téléphones suffit (les réponses passent par un simple `POST`), et c'est disponible dans la bibliothèque standard.
 - **Une partie par lancement** : pas de code de partie à saisir ; pour rejouer, relancer `./ask-me -reseau`.
 - **Pas de persistance** : tout est en mémoire et disparaît à l'arrêt du programme.
-- **Réseau local uniquement**, sans HTTPS ni authentification : tous les appareils doivent être sur le même Wi-Fi, et certains réseaux (invités, établissements) isolent les appareils entre eux.
+- **Réseau local par défaut**, sans HTTPS ni authentification : avec `-reseau`, tous les appareils doivent être sur le même Wi-Fi, et certains réseaux (invités, établissements) isolent les appareils entre eux.
+- **À distance par un tunnel plutôt qu'un hébergement** : `-remote` ne demande ni compte ni serveur, mais l'ordinateur de l'hôte doit rester allumé et le lien change à chaque partie. N'importe qui ayant le lien peut rejoindre le salon : l'adresse est aléatoire et n'existe que le temps de la partie. Les quick tunnels de Cloudflare sont prévus pour des tests et n'ont pas de garantie de disponibilité.
+- **Latence** : en mode « le plus rapide », c'est la première réponse reçue par le serveur qui gagne ; à distance, une connexion lente désavantage légèrement.
 - On ne peut pas quitter le salon une fois inscrit ; un joueur absent est pénalisé par le temps écoulé en mode « chacun son tour ».

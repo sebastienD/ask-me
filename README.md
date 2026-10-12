@@ -2,14 +2,14 @@
 
 Petit jeu de questions/réponses pour réviser du vocabulaire, seul ou entre amis. Il est livré avec la liste des verbes irréguliers anglais ([anglais.csv](anglais.csv)), mais fonctionne avec n'importe quelle liste.
 
-Deux façons de jouer :
+Trois façons de jouer :
 
-| | Dans le terminal | Sur téléphone, en réseau local |
-|---|---|---|
-| Pour qui | seul, ou à plusieurs sur le même ordinateur | à plusieurs, chacun sur son téléphone |
-| Comment | on se passe le clavier | une personne crée la partie, les autres rejoignent avec un lien |
-| À installer | le jeu sur l'ordinateur | le jeu sur un seul ordinateur, **rien sur les téléphones** |
-| Commande | `./ask-me` | `./ask-me -reseau` |
+| | Dans le terminal | Sur téléphone, même Wi-Fi | Sur téléphone, à distance |
+|---|---|---|---|
+| Pour qui | seul, ou à plusieurs sur le même ordinateur | à plusieurs, réunis au même endroit | à plusieurs, chacun chez soi |
+| Comment | on se passe le clavier | une personne crée la partie, les autres rejoignent avec un lien | pareil, le lien marche aussi en 4G/5G |
+| À installer | le jeu sur l'ordinateur | le jeu sur un seul ordinateur, **rien sur les téléphones** | le jeu et [cloudflared](#jouer-à-distance) sur un seul ordinateur |
+| Commande | `./ask-me` | `./ask-me -reseau` | `./ask-me -remote` |
 
 ## Le principe
 
@@ -116,10 +116,42 @@ Pour rejouer, appuyer sur Entrée dans le terminal pour quitter, puis relancer `
 |---|---|---|
 | `-n` | nombre de questions par joueur (en mode « le plus rapide » : nombre total de questions) | 3 |
 | `-port` | port utilisé par la partie (à changer si 4242 est déjà pris) | 4242 |
+| `-remote` | jouer à distance, par Internet, au lieu du même Wi-Fi (voir [Jouer à distance](#jouer-à-distance)) | désactivé |
 
 ```bash
 ./ask-me -reseau -n 10
 ```
+
+## Jouer à distance
+
+Pour jouer avec des amis qui ne sont pas sur le même Wi-Fi (chacun chez soi, ou en 4G/5G), la partie passe par Internet grâce à un tunnel Cloudflare : gratuit, sans compte, et sans rien configurer sur la box.
+
+### Installer cloudflared (une seule fois, sur l'ordinateur de l'hôte)
+
+| Système | Commande |
+|---|---|
+| macOS | `brew install cloudflared` |
+| Windows | `winget install --id Cloudflare.cloudflared` |
+| Linux | voir [la page de téléchargement](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) |
+
+### Créer la partie
+
+```bash
+./ask-me -remote
+```
+
+Tout se passe ensuite comme [sur le même Wi-Fi](#jouer-sur-téléphone-en-réseau-local) : choix du mode, lien à envoyer sur WhatsApp, QR code, **Entrée** pour lancer. Seul le lien change, il ressemble à :
+
+```
+https://vert-lapin-42.trycloudflare.com
+```
+
+- Le jeu attend que le lien réponde avant de l'afficher (quelques secondes).
+- Le lien change à chaque partie : il faut renvoyer le nouveau.
+- **L'ordinateur de l'hôte doit rester allumé et connecté** pendant toute la partie.
+- Les options `-n` et `-port` fonctionnent de la même façon.
+
+En mode « le plus rapide », c'est la première réponse **reçue** qui gagne : à distance, un joueur avec une connexion lente peut perdre quelques dixièmes de seconde.
 
 ## Les modes de jeu
 
@@ -176,16 +208,22 @@ arise;arose;arisen;survenir
 ## Questions fréquentes
 
 **Le lien ne s'ouvre pas sur le téléphone.**
-Le téléphone doit être sur **le même Wi-Fi** que l'ordinateur, pas en 4G/5G.
+Avec `-reseau`, le téléphone doit être sur **le même Wi-Fi** que l'ordinateur, pas en 4G/5G. Pour jouer sans être sur le même Wi-Fi, lancer la partie avec [`-remote`](#jouer-à-distance).
 
 **Tout le monde est sur le même Wi-Fi, mais ça ne marche toujours pas.**
 Certains Wi-Fi « invités » ou d'établissements scolaires empêchent les appareils de se parler entre eux. Utiliser le Wi-Fi de la maison, ou un partage de connexion depuis un téléphone (l'ordinateur et les autres téléphones s'y connectent).
 
 **macOS demande s'il faut autoriser les connexions entrantes.**
-Cliquer sur « Autoriser », sinon les téléphones ne peuvent pas rejoindre la partie.
+Cliquer sur « Autoriser », sinon les téléphones ne peuvent pas rejoindre la partie. Avec `-remote`, la question ne se pose pas : seul cloudflared se connecte au jeu.
 
 **Le terminal affiche « Impossible de trouver l'adresse de cet ordinateur sur le réseau local ».**
 L'ordinateur n'est connecté à aucun réseau : le connecter au Wi-Fi puis relancer la partie.
+
+**« cloudflared est introuvable ».**
+`-remote` a besoin de cloudflared sur l'ordinateur de l'hôte : voir [Installer cloudflared](#installer-cloudflared-une-seule-fois-sur-lordinateur-de-lhôte).
+
+**Avec `-remote`, le lien ne s'ouvre pas tout de suite.**
+Un nouveau lien met parfois quelques secondes à fonctionner partout. Le jeu prévient s'il ne répond pas encore : attendre un peu et réessayer.
 
 **Un joueur a fermé la page ou son téléphone s'est mis en veille.**
 Il rouvre le lien sur le même téléphone et retrouve sa place. Pendant ce temps, en mode « chacun son tour », ses questions sans réponse comptent comme des échecs.
