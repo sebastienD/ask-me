@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os/exec"
 	"regexp"
@@ -100,10 +102,25 @@ func findTunnelURL(logs io.Reader, timeout time.Duration) (string, error) {
 	}
 }
 
+// publicResolver asks Cloudflare DNS directly. Asking the system resolver
+// before the tunnel's DNS record exists would make the computer cache the
+// failure, and the host could not open the link for a while.
+var publicResolver = &net.Resolver{
+	PreferGo: true,
+	Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		var dialer net.Dialer
+		return dialer.DialContext(ctx, "udp", "1.1.1.1:53")
+	},
+}
+
 // WaitReady polls the public address until the game page answers: a new
 // quick tunnel takes a few seconds to be reachable.
 func (t *Tunnel) WaitReady(timeout time.Duration) bool {
-	client := &http.Client{Timeout: 5 * time.Second}
+	dialer := &net.Dialer{Resolver: publicResolver}
+	client := &http.Client{
+		Timeout:   5 * time.Second,
+		Transport: &http.Transport{DialContext: dialer.DialContext},
+	}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if resp, err := client.Get(t.URL); err == nil {

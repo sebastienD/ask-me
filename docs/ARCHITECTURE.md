@@ -192,7 +192,7 @@ sequenceDiagram
 
 1. `startTunnel` cherche `cloudflared` dans le `PATH` ; s'il manque, `ErrCloudflaredMissing` donne les commandes d'installation ;
 2. `findTunnelURL` lit les logs de `cloudflared` (sur sa sortie d'erreur) jusqu'à trouver l'adresse publique, avec un délai maximum de 30 s ; ensuite les logs continuent d'être lus et jetés, pour que `cloudflared` ne bloque jamais en écrivant ;
-3. `WaitReady` interroge l'adresse publique toutes les secondes, jusqu'à 20 s, car un nouveau tunnel met quelques secondes à répondre ; si ce n'est pas le cas, le lien est quand même affiché avec un avertissement ;
+3. `WaitReady` interroge l'adresse publique toutes les secondes, jusqu'à 20 s, car un nouveau tunnel met quelques secondes à répondre ; si ce n'est pas le cas, le lien est quand même affiché avec un avertissement. Le nom est résolu directement auprès du DNS de Cloudflare (`1.1.1.1`) : interroger le DNS du système avant que le nom existe lui ferait mémoriser l'échec, et l'hôte ne pourrait plus ouvrir le lien pendant un moment ;
 4. `Stop` arrête `cloudflared` à la fin de la partie.
 
 Rien ne change dans le moteur, l'API ni la page : le flux SSE traverse le tunnel, et le commentaire `: keep-alive` envoyé toutes les 15 s évite que Cloudflare coupe une connexion inactive.
