@@ -1,24 +1,29 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 )
 
 //go:embed web/index.html
 var indexHTML []byte
 
-// keepAliveInterval keeps idle event streams open on phones and proxies.
-const keepAliveInterval = 15 * time.Second
+// longPollTimeout is how long /api/state waits for a change. It stays well
+// below the 100 s after which Cloudflare cuts a request without response.
+var longPollTimeout = 25 * time.Second
 
 // NewServer serves the game page and its API:
 //   - POST /api/join   {"name"}         → {"id"}
 //   - POST /api/answer {"id", "answer"} → {"correct"}
-//   - GET  /api/events                  → Server-Sent Events of Snapshot
+//   - GET  /api/state?after=<version>   → Snapshot, once its version differs
+//
+// The state is sent by long polling rather than Server-Sent Events, because
+// Cloudflare quick tunnels (-remote) do not support SSE.
 func NewServer(room *Room) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleIndex)
@@ -51,8 +56,8 @@ func NewServer(room *Room) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"correct": correct})
 	}))
-	mux.HandleFunc("/api/events", func(w http.ResponseWriter, r *http.Request) {
-		streamEvents(w, r, room)
+	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
+		handleState(w, r, room)
 	})
 	return mux
 }
@@ -66,35 +71,25 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write(indexHTML)
 }
 
-func streamEvents(w http.ResponseWriter, r *http.Request, room *Room) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+// handleState answers as soon as the game differs from the version the phone
+// already has, or after longPollTimeout with the same state.
+func handleState(w http.ResponseWriter, r *http.Request, room *Room) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-
-	updates, unsubscribe := room.Subscribe()
-	defer unsubscribe()
-	keepAlive := time.NewTicker(keepAliveInterval)
-	defer keepAlive.Stop()
-
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case <-keepAlive.C:
-			fmt.Fprint(w, ": keep-alive\n\n")
-		case snapshot := <-updates:
-			data, err := json.Marshal(snapshot)
-			if err != nil {
-				return
-			}
-			fmt.Fprintf(w, "data: %s\n\n", data)
-		}
-		flusher.Flush()
+	after, err := strconv.Atoi(r.URL.Query().Get("after"))
+	if err != nil {
+		after = -1 // no known version: answer right away
 	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), longPollTimeout)
+	defer cancel()
+	snapshot := room.WaitChange(ctx, after)
+
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, snapshot)
 }
 
 func post(handler http.HandlerFunc) http.HandlerFunc {

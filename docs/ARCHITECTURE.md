@@ -17,7 +17,7 @@ flowchart LR
     Deck --> Room[Room<br/>moteur réseau]
     Results[results.go<br/>score, gagnant] --- Game
     Results --- Room
-    Room --> Server[server.go<br/>HTTP + SSE]
+    Room --> Server[server.go<br/>HTTP + long polling]
     Server <--> Phones[web/index.html<br/>téléphones]
     Network[network.go<br/>terminal de l'hôte] --> Room
     Network --> Server
@@ -35,7 +35,7 @@ flowchart LR
 | [game.go](../game.go) | `Game` : partie dans le terminal |
 | [room.go](../room.go) | `Room` : moteur de la partie en réseau (salon, modes, délais, diffusion) |
 | [snapshot.go](../snapshot.go) | `Snapshot` : état de la partie envoyé aux téléphones |
-| [server.go](../server.go) | serveur HTTP : page du jeu et API JSON / SSE |
+| [server.go](../server.go) | serveur HTTP : page du jeu et API JSON (état transmis par long polling) |
 | [network.go](../network.go) | côté terminal de l'hôte : choix du mode, adresse IP, invitation, QR code, résultats |
 | [tunnel.go](../tunnel.go) | `-remote` : lancement de `cloudflared`, lecture de l'adresse publique, attente qu'elle réponde |
 | [web/index.html](../web/index.html) | page jouée sur les téléphones (HTML, CSS et JS sans dépendance), intégrée au binaire par `embed` |
@@ -95,6 +95,7 @@ Le gagnant est le joueur avec le plus de réussites (le premier inscrit en cas d
 - Toutes les méthodes publiques de `Room` prennent un `sync.Mutex` ; les méthodes `askQuestion`, `endQuestion` et `snapshot` supposent le verrou déjà pris.
 - Les délais sont programmés par `r.schedule(d, f)` (par défaut `time.AfterFunc`). Chaque callback capture le numéro de la question (`round`) et ne fait rien si la partie a avancé entre-temps : un minuteur périmé ne peut pas terminer la question suivante.
 - **Diffusion** : `Subscribe()` renvoie un canal de capacité 1 qui reçoit immédiatement l'état courant. À chaque changement, `broadcast()` vide l'éventuel état non lu puis envoie le nouveau : un abonné lent ne bloque jamais la partie et reçoit toujours l'état le plus récent.
+- **Version** : `broadcast()` incrémente aussi `version`, envoyée dans chaque `Snapshot`. `WaitChange(ctx, after)` s'abonne et rend l'état dès que sa version est différente de `after` (ou à l'expiration de `ctx`) : c'est la base du long polling. Comme la version ne fait que croître, un téléphone qui connaît une version plus grande (celle d'une partie précédente) reçoit l'état courant tout de suite.
 
 ### Ce que voient les joueurs : `Snapshot`
 
@@ -103,6 +104,7 @@ L'état est le même pour tous les joueurs ; chaque téléphone sait qui il est 
 ```json
 {
   "game": "07c395c370c41458e3638879a811b897",
+  "version": 12,
   "phase": "question",
   "mode": "Le plus rapide",
   "players": [
@@ -124,6 +126,7 @@ L'état est le même pour tous les joueurs ; chaque téléphone sait qui il est 
 | Champ | Description |
 |---|---|
 | `game` | identifiant aléatoire de la partie : le téléphone oublie son inscription s'il change |
+| `version` | numéro de l'état, incrémenté à chaque changement ; le téléphone le renvoie dans `GET /api/state?after=` |
 | `turn` | en mode « chacun son tour », le joueur qui doit répondre |
 | `answered` | joueurs ayant déjà répondu à la question en cours |
 | `deadline`, `duration` | fin de la question (ms Unix) et durée totale, pour le compte à rebours |
@@ -140,9 +143,11 @@ Servie par `NewServer` ([server.go](../server.go)). Les messages d'erreur sont e
 | `GET /` | — | la page du jeu |
 | `POST /api/join` | `{"name": "Léa"}` | `{"id": "<identifiant secret>"}` |
 | `POST /api/answer` | `{"id": "…", "answer": "tenir"}` | `{"correct": true}` |
-| `GET /api/events` | — | flux [Server-Sent Events](https://developer.mozilla.org/fr/docs/Web/API/Server-sent_events) : un `Snapshot` JSON par événement `data:` |
+| `GET /api/state?after=<version>` | — | le `Snapshot` dès que sa version diffère de `after`, sinon le même après 25 s ; sans `after`, tout de suite |
 
-Codes d'erreur : `400` avec `{"error": "…"}` (corps invalide, prénom vide, trop long ou déjà pris, partie commencée, pas ton tour, déjà répondu…), `404` pour un identifiant inconnu, `405` pour une mauvaise méthode. Les corps sont limités à 4 Ko. Le flux SSE envoie un commentaire `: keep-alive` toutes les 15 s pour que les téléphones et les box ne coupent pas la connexion.
+Codes d'erreur : `400` avec `{"error": "…"}` (corps invalide, prénom vide, trop long ou déjà pris, partie commencée, pas ton tour, déjà répondu…), `404` pour un identifiant inconnu, `405` pour une mauvaise méthode. Les corps sont limités à 4 Ko.
+
+`/api/state` fonctionne en **long polling** : le serveur garde la requête ouverte jusqu'au prochain changement de la partie (au plus 25 s, bien en dessous des 100 s après lesquelles Cloudflare coupe une requête sans réponse), puis le téléphone en relance aussitôt une autre. La réponse porte `Cache-Control: no-store` pour qu'aucun proxy ne la garde en cache. Ce sont des requêtes HTTP ordinaires, qui traversent n'importe quel proxy ou tunnel, contrairement aux Server-Sent Events, que les quick tunnels Cloudflare ne transmettent pas (voir [Jeu à distance](#jeu-à-distance--le-tunnel)).
 
 L'identifiant renvoyé par `/api/join` est un secret aléatoire de 128 bits : seul le téléphone qui s'est inscrit peut répondre pour ce joueur.
 
@@ -151,7 +156,7 @@ L'identifiant renvoyé par `/api/join` est un secret aléatoire de 128 bits : se
 [web/index.html](../web/index.html) est un fichier unique sans dépendance :
 
 - l'inscription `{game, id, name}` est gardée dans `localStorage` : un joueur qui recharge la page retrouve sa place, et une ancienne inscription est ignorée si l'identifiant `game` a changé ;
-- `EventSource` se reconnecte tout seul ; une bannière s'affiche quand la connexion est perdue ;
+- une boucle `poll()` enchaîne les requêtes `GET /api/state?after=<dernière version>` ; en cas d'erreur, une bannière s'affiche et la boucle réessaie toutes les 2 s ;
 - les sections sont masquées ou affichées, sans tout redessiner, pour ne pas effacer ce que le joueur est en train de taper quand un autre répond ;
 - le champ de réponse désactive majuscule automatique, correcteur et suggestions (`autocapitalize`, `autocorrect`, `spellcheck`) ;
 - le texte venant du serveur est toujours inséré avec `textContent` (pas d'injection HTML via un prénom).
@@ -185,7 +190,7 @@ sequenceDiagram
         Hôte->>Edge: GET https://xxx.trycloudflare.com
     end
     Hôte->>Hôte: affiche le lien, le message WhatsApp et le QR code
-    Tel->>Edge: page, API et flux SSE en https
+    Tel->>Edge: page et API en https (long polling)
     Edge->>CF: requêtes
     CF->>Hôte: http://localhost:PORT
 ```
@@ -195,7 +200,12 @@ sequenceDiagram
 3. `WaitReady` interroge l'adresse publique toutes les secondes, jusqu'à 20 s, car un nouveau tunnel met quelques secondes à répondre ; si ce n'est pas le cas, le lien est quand même affiché avec un avertissement. Le nom est résolu directement auprès du DNS de Cloudflare (`1.1.1.1`) : interroger le DNS du système avant que le nom existe lui ferait mémoriser l'échec, et l'hôte ne pourrait plus ouvrir le lien pendant un moment ;
 4. `Stop` arrête `cloudflared` à la fin de la partie.
 
-Rien ne change dans le moteur, l'API ni la page : le flux SSE traverse le tunnel, et le commentaire `: keep-alive` envoyé toutes les 15 s évite que Cloudflare coupe une connexion inactive.
+Le moteur, l'API et la page sont les mêmes qu'en réseau local. Deux points ont été découverts en testant avec un vrai tunnel :
+
+- **Les quick tunnels ne transmettent pas les Server-Sent Events** ([limite documentée par Cloudflare](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/)) : les en-têtes arrivent, mais aucun événement. C'est pourquoi l'état passe par long polling (`/api/state`).
+- **Cache DNS de l'hôte** : d'où la résolution par `1.1.1.1` dans `WaitReady` (étape 3 ci-dessus).
+
+Les quick tunnels acceptent au plus 200 requêtes en cours : chaque joueur en garde une ouverte (le long polling) plus ses réponses, ce qui laisse de la marge pour une partie entre amis.
 
 ## Tests
 
@@ -208,8 +218,8 @@ go test -race ./...
 | [deck_test.go](../deck_test.go) | lecture du CSV et cas d'erreur, cohérence de `anglais.csv`, tirage des questions |
 | [game_test.go](../game_test.go) | partie terminal : vérification des réponses, ordre des tours |
 | [results_test.go](../results_test.go) | score, gagnant, affichage des résultats |
-| [room_test.go](../room_test.go) | inscription, deux modes de jeu, temps écoulé, minuteur périmé, réponse jamais divulguée, abonnements |
-| [server_test.go](../server_test.go) | page, API (succès et erreurs), flux SSE de bout en bout avec `httptest` |
+| [room_test.go](../room_test.go) | inscription, deux modes de jeu, temps écoulé, minuteur périmé, réponse jamais divulguée, abonnements, attente d'un changement (`WaitChange`) |
+| [server_test.go](../server_test.go) | page, API (succès et erreurs), long polling de bout en bout avec `httptest` (réponse immédiate, attente puis réponse au changement, expiration) |
 | [network_test.go](../network_test.go) | choix du mode, choix de l'adresse IP, invitation (réseau local et à distance), suivi des arrivées |
 | [tunnel_test.go](../tunnel_test.go) | lecture de l'adresse dans les logs, `cloudflared` absent, faux `cloudflared` (script shell qui imite ses logs et enregistre ses arguments), attente que le lien réponde |
 
@@ -231,14 +241,14 @@ La CI GitHub Actions ([.github/workflows/go.yml](../.github/workflows/go.yml)) c
 | `github.com/pkg/errors` | contexte sur les erreurs |
 | `github.com/mdp/qrterminal/v3` | QR code dans le terminal |
 
-Le serveur HTTP, le JSON, les SSE et l'intégration de la page utilisent uniquement la bibliothèque standard.
+Le serveur HTTP, le JSON, le long polling et l'intégration de la page utilisent uniquement la bibliothèque standard.
 
 `-remote` utilise aussi le programme [cloudflared](https://github.com/cloudflare/cloudflared), à installer sur l'ordinateur de l'hôte. Ce n'est pas une dépendance Go : le jeu le lance comme une commande externe.
 
 ## Choix et limites
 
 - **Navigateur plutôt qu'application** : rien à installer pour les joueurs, un lien suffit.
-- **SSE plutôt que WebSocket** : la communication serveur → téléphones suffit (les réponses passent par un simple `POST`), et c'est disponible dans la bibliothèque standard.
+- **Long polling plutôt que SSE ou WebSocket** : la communication serveur → téléphones suffit (les réponses passent par un simple `POST`), c'est disponible dans la bibliothèque standard, et ce sont des requêtes HTTP ordinaires qui passent partout, y compris par les quick tunnels Cloudflare qui bloquent les SSE. Le coût, une requête par changement, est négligeable pour quelques joueurs.
 - **Une partie par lancement** : pas de code de partie à saisir ; pour rejouer, relancer `./ask-me -reseau`.
 - **Pas de persistance** : tout est en mémoire et disparaît à l'arrêt du programme.
 - **Réseau local par défaut**, sans HTTPS ni authentification : avec `-reseau`, tous les appareils doivent être sur le même Wi-Fi, et certains réseaux (invités, établissements) isolent les appareils entre eux.

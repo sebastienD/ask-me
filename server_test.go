@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -88,53 +88,80 @@ func TestAnswerAPI(t *testing.T) {
 	}
 }
 
-func TestEventsAPI(t *testing.T) {
-	room := NewRoom(echoDeck, ModeTurns, 1)
-	server := httptest.NewServer(NewServer(room))
-	defer server.Close()
-
-	resp, err := http.Get(server.URL + "/api/events")
+func getState(t *testing.T, url string) Snapshot {
+	t.Helper()
+	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if got := resp.Header.Get("Content-Type"); got != "text/event-stream" {
-		t.Errorf("Content-Type = %q, want text/event-stream", got)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s = %d", url, resp.StatusCode)
+	}
+	if got := resp.Header.Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", got)
+	}
+	var s Snapshot
+	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestStateAPI(t *testing.T) {
+	room := NewRoom(echoDeck, ModeTurns, 1)
+	server := httptest.NewServer(NewServer(room))
+	defer server.Close()
+
+	// Without a known version, the state comes right away.
+	first := getState(t, server.URL+"/api/state")
+	if first.Phase != PhaseLobby || len(first.Players) != 0 {
+		t.Fatalf("state = %+v, want an empty lobby", first)
 	}
 
-	events := make(chan Snapshot)
+	// With the current version, the request waits for the next change.
+	changed := make(chan Snapshot)
 	go func() {
-		scanner := bufio.NewScanner(resp.Body)
-		for scanner.Scan() {
-			data, ok := strings.CutPrefix(scanner.Text(), "data: ")
-			if !ok {
-				continue
-			}
-			var s Snapshot
-			if err := json.Unmarshal([]byte(data), &s); err == nil {
-				events <- s
-			}
-		}
-		close(events)
+		changed <- getState(t, fmt.Sprintf("%s/api/state?after=%d", server.URL, first.Version))
 	}()
-	next := func() Snapshot {
-		t.Helper()
-		select {
-		case s := <-events:
-			return s
-		case <-time.After(2 * time.Second):
-			t.Fatal("no event received")
-			return Snapshot{}
-		}
-	}
-
-	if s := next(); s.Phase != PhaseLobby || len(s.Players) != 0 {
-		t.Errorf("first event = %+v, want an empty lobby", s)
+	select {
+	case s := <-changed:
+		t.Fatalf("answered before any change: %+v", s)
+	case <-time.After(50 * time.Millisecond):
 	}
 	if _, err := room.Join("Léa"); err != nil {
 		t.Fatal(err)
 	}
-	if s := next(); len(s.Players) != 1 || s.Players[0].Name != "Léa" {
-		t.Errorf("event after join = %+v, want Léa in the lobby", s)
+	select {
+	case s := <-changed:
+		if s.Version <= first.Version || len(s.Players) != 1 {
+			t.Errorf("state after join = %+v, want Léa and a new version", s)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no answer after the change")
+	}
+}
+
+func TestStateAPITimeout(t *testing.T) {
+	defer func(timeout time.Duration) { longPollTimeout = timeout }(longPollTimeout)
+	longPollTimeout = 50 * time.Millisecond
+
+	room := NewRoom(echoDeck, ModeTurns, 1)
+	server := httptest.NewServer(NewServer(room))
+	defer server.Close()
+
+	version := room.Snapshot().Version
+	s := getState(t, fmt.Sprintf("%s/api/state?after=%d", server.URL, version))
+	if s.Version != version {
+		t.Errorf("version = %d, want the unchanged %d", s.Version, version)
+	}
+
+	resp, err := http.Post(server.URL+"/api/state", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("POST /api/state = %d, want 405", resp.StatusCode)
 	}
 }

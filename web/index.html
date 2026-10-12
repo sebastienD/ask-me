@@ -335,17 +335,26 @@ setInterval(() => {
   $("timer-bar").style.width = Math.min(100, remaining / q.duration * 100) + "%";
 }, 200);
 
-function connect() {
-  const events = new EventSource("/api/events");
-  events.onopen = () => show("offline", false);
-  events.onerror = () => show("offline", true);
-  events.onmessage = (event) => {
-    snapshot = JSON.parse(event.data);
-    clockOffset = snapshot.now - Date.now();
-    render();
-  };
+// Long polling: each request waits on the server until the game changes.
+// It goes through any proxy or tunnel, unlike Server-Sent Events.
+async function poll() {
+  let version = -1;
+  for (;;) {
+    try {
+      const response = await fetch("/api/state?after=" + version, { cache: "no-store" });
+      if (!response.ok) throw new Error(response.statusText);
+      snapshot = await response.json();
+      version = snapshot.version;
+      clockOffset = snapshot.now - Date.now();
+      show("offline", false);
+      render();
+    } catch {
+      show("offline", true);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
 }
-connect();
+poll();
 </script>
 </body>
 </html>

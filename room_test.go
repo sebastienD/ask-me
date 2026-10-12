@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"math/rand"
@@ -300,5 +301,38 @@ func TestSubscribe(t *testing.T) {
 	case s := <-updates:
 		t.Errorf("received %+v after unsubscribe", s)
 	default:
+	}
+}
+
+func TestWaitChange(t *testing.T) {
+	r, _, _ := newTestRoom(t, echoDeck, ModeTurns, 1, "Léa")
+	version := r.Snapshot().Version
+	ctx := context.Background()
+
+	if s := r.WaitChange(ctx, -1); s.Version != version {
+		t.Errorf("unknown version: got %d, want the current %d", s.Version, version)
+	}
+	if s := r.WaitChange(ctx, version+10); s.Version != version {
+		t.Errorf("version from an older game: got %d, want the current %d", s.Version, version)
+	}
+
+	timeout, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+	defer cancel()
+	if s := r.WaitChange(timeout, version); s.Version != version {
+		t.Errorf("no change: got %d, want %d", s.Version, version)
+	}
+
+	changed := make(chan Snapshot)
+	go func() { changed <- r.WaitChange(ctx, version) }()
+	if _, err := r.Join("Tom"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case s := <-changed:
+		if s.Version <= version || len(s.Players) != 2 {
+			t.Errorf("after join: %+v, want Tom and a new version", s)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("WaitChange did not return after a change")
 	}
 }

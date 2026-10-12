@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -83,6 +84,7 @@ type Room struct {
 	deadline time.Time
 	reveal   *Reveal
 
+	version     int // incremented at each change
 	subscribers map[chan Snapshot]struct{}
 }
 
@@ -279,9 +281,28 @@ func (r *Room) Players() []*Player {
 	return append([]*Player(nil), r.players...)
 }
 
-// broadcast sends the current snapshot to every subscriber, replacing any
-// snapshot not read yet. The caller must hold the lock.
+// WaitChange returns the current snapshot as soon as its version differs from
+// after, or when ctx is done. A version can only grow, so a phone that still
+// knows an older game gets the current state right away.
+func (r *Room) WaitChange(ctx context.Context, after int) Snapshot {
+	updates, unsubscribe := r.Subscribe()
+	defer unsubscribe()
+
+	snapshot := <-updates
+	for snapshot.Version == after {
+		select {
+		case snapshot = <-updates:
+		case <-ctx.Done():
+			return snapshot
+		}
+	}
+	return snapshot
+}
+
+// broadcast records a change and sends the new snapshot to every subscriber,
+// replacing any snapshot not read yet. The caller must hold the lock.
 func (r *Room) broadcast() {
+	r.version++
 	snapshot := r.snapshot()
 	for ch := range r.subscribers {
 		select {

@@ -6,6 +6,7 @@ import "time"
 // the answer of the current question before the reveal.
 type Snapshot struct {
 	Game     string        `json:"game"`
+	Version  int           `json:"version"` // grows at each change of the game
 	Phase    Phase         `json:"phase"`
 	Mode     string        `json:"mode"`
 	Players  []PlayerView  `json:"players"`
@@ -44,6 +45,7 @@ type Reveal struct {
 func (r *Room) snapshot() Snapshot {
 	s := Snapshot{
 		Game:    r.id,
+		Version: r.version,
 		Phase:   r.phase,
 		Mode:    r.mode.String(),
 		Players: make([]PlayerView, len(r.players)),
