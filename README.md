@@ -25,6 +25,51 @@ En cas d'erreur, la bonne réponse est affichée.
 
 ## Installation
 
+### Télécharger le jeu (sans rien installer d'autre)
+
+1. Ouvrir la [dernière release](https://github.com/sebastienD/ask-me/releases/latest) et télécharger l'archive de son système :
+
+   | Système | Archive à prendre |
+   |---|---|
+   | Mac avec puce Apple (M1, M2, M3, M4…) | `ask-me-…-darwin-arm64.tar.gz` |
+   | Mac avec processeur Intel | `ask-me-…-darwin-amd64.tar.gz` |
+   | Windows | `ask-me-…-windows-amd64.zip` |
+   | Linux | `ask-me-…-linux-amd64.tar.gz` (ou `linux-arm64`, `linux-386`) |
+
+   **Sur Mac, « amd64 » veut dire Intel**, pas « version standard ». Pour savoir quelle puce a son Mac : menu  › À propos de ce Mac, ligne « Puce » (Apple M…) ou « Processeur » (Intel). Prendre la mauvaise archive donne l'erreur « bad CPU type in executable ».
+
+2. Décompresser l'archive (double-clic). Le dossier obtenu contient le jeu, `anglais.csv`, ce README et la licence.
+
+3. Ouvrir un terminal **dans ce dossier** et lancer le jeu :
+
+   ```bash
+   ./ask-me
+   ```
+
+   Sous Windows, dans PowerShell : `.\ask-me.exe`.
+
+### Premier lancement : l'avertissement de sécurité
+
+Le jeu n'est pas signé auprès d'Apple ni de Microsoft : au premier lancement, le système le bloque, comme pour tout programme téléchargé dont il ne connaît pas l'auteur. C'est normal, il suffit de l'autoriser **une seule fois**.
+
+**Sur Mac**, le message est « Apple n'a pas pu confirmer que « ask-me » ne contenait pas de logiciel malveillant… ». Au choix :
+
+- dans le terminal, depuis le dossier du jeu :
+
+  ```bash
+  xattr -d com.apple.quarantine ask-me
+  ```
+
+- ou sans terminal : fermer le message, puis  › Réglages Système › Confidentialité et sécurité ; en bas, à côté de « ask-me a été bloqué », cliquer sur **Ouvrir quand même** et confirmer.
+
+**Sur Windows**, si le message « Windows a protégé votre ordinateur » s'affiche : cliquer sur **Informations complémentaires**, puis **Exécuter quand même**. Dans PowerShell, on peut aussi débloquer le fichier avant de le lancer :
+
+```powershell
+Unblock-File .\ask-me.exe
+```
+
+### Compiler le jeu soi-même
+
 Il faut [Go](https://go.dev/dl/) 1.21 ou plus récent :
 
 ```bash
@@ -33,9 +78,9 @@ cd ask-me
 go build
 ```
 
-Le fichier `anglais.csv` doit se trouver dans le dossier depuis lequel on lance le jeu.
+Un jeu compilé sur sa propre machine n'est pas concerné par l'avertissement de sécurité.
 
-Sans installer Go, on peut aussi télécharger le jeu dans les [releases GitHub](https://github.com/sebastienD/ask-me/releases) : une archive par système (Linux, Windows, macOS) contient le jeu, `anglais.csv`, ce README et la licence. Décompresser l'archive et lancer `./ask-me` depuis ce dossier. Attention : la seule release publiée pour l'instant (v0.0.1, 2023) date d'avant le mode réseau et le score, et ne contient pas `anglais.csv`.
+Dans tous les cas, le fichier `anglais.csv` doit se trouver dans le dossier depuis lequel on lance le jeu.
 
 ## Jouer dans le terminal
 
@@ -206,6 +251,15 @@ arise;arose;arisen;survenir
 - les espaces autour des valeurs sont supprimés.
 
 ## Questions fréquentes
+
+**« bad CPU type in executable » au lancement sur Mac.**
+L'archive téléchargée ne correspond pas à la puce du Mac : prendre `darwin-arm64` pour un Mac avec puce Apple (M1, M2…), `darwin-amd64` pour un Mac Intel. Voir [Télécharger le jeu](#télécharger-le-jeu-sans-rien-installer-dautre).
+
+**« Apple n'a pas pu confirmer que « ask-me » ne contenait pas de logiciel malveillant ».**
+Le jeu n'est pas signé auprès d'Apple : il faut l'autoriser une fois. Voir [Premier lancement](#premier-lancement--lavertissement-de-sécurité).
+
+**« Windows a protégé votre ordinateur ».**
+Même raison : cliquer sur « Informations complémentaires » puis « Exécuter quand même ».
 
 **Le lien ne s'ouvre pas sur le téléphone.**
 Avec `-local`, le téléphone doit être sur **le même Wi-Fi** que l'ordinateur, pas en 4G/5G. Pour jouer sans être sur le même Wi-Fi, lancer la partie avec [`-remote`](#jouer-à-distance).
